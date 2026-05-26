@@ -415,11 +415,22 @@ export default function CreateCourse() {
   const processCurriculumGrid = (grid: any[][]) => {
     if (grid.length === 0) return;
 
-    // 1. Find header row (search first 10 rows for fields like phase, week, topic, lesson)
+    // 1. Find header row — MUST have 3+ columns AND 2+ keyword matches
+    //    This prevents subtitle rows like "60 Days | 2–3 Hours/Day" from being detected
     let headerRowIdx = 0;
-    for (let i = 0; i < Math.min(grid.length, 10); i++) {
-      const row = grid[i].map(x => String(x || "").toLowerCase());
-      if (row.some(c => c.includes("day") || c.includes("week") || c.includes("phase") || c.includes("topic") || c.includes("lesson"))) {
+    for (let i = 0; i < Math.min(grid.length, 15); i++) {
+      const row = grid[i];
+      // A valid header row has multiple columns (not a single-cell title)
+      if (!row || row.length < 3) continue;
+      const lowered = row.map((x: any) => String(x || "").toLowerCase().trim());
+      // Count how many cells are exact or near-exact header keyword matches (short strings)
+      const headerKeywords = ["day", "week", "phase", "topic", "topics covered", "lesson", "title",
+        "duration", "task", "hands-on", "project", "milestone", "difficulty", "stack", "section", "module"];
+      const matchCount = lowered.filter((cell: string) =>
+        headerKeywords.some(kw => cell === kw || cell === kw + "s" || cell.startsWith(kw + " ") || cell.includes(kw))
+          && cell.length < 40  // header cells are short; paragraph cells are not
+      ).length;
+      if (matchCount >= 2) {
         headerRowIdx = i;
         break;
       }
@@ -635,29 +646,103 @@ export default function CreateCourse() {
   const handlePrepopulateTemplate = () => {
     const template: Section[] = [
       {
-        id: -1,
-        title: "PHASE 1 — Python Foundations",
-        sort_order: 1,
-        isExpanded: true,
+        id: -1, title: "PHASE 1 — Python Foundations", sort_order: 1, isExpanded: true,
         lessons: [
-          { id: -1.1, title: "Day 1: Environment Setup: VS Code, Python install, venv, pip, folder structure", duration: "10:00", sort_order: 1 },
-          { id: -1.2, title: "Day 2: Variables, Data Types, Type Casting, Comments", duration: "10:00", sort_order: 2 },
-          { id: -1.3, title: "Day 3: Strings: indexing, slicing, methods, f-strings", duration: "10:00", sort_order: 3 }
+          { id: -1.01, title: "Day 1: Environment Setup: VS Code, Python install, venv, pip, folder structure", duration: "10:00", sort_order: 1, hands_on_task: "Create venv, install packages, write Hello World script", project_milestone: "—", tech_stack: "Python, VS Code, pip", difficulty: "Beginner" },
+          { id: -1.02, title: "Day 2: Variables, Data Types (int/float/str/bool), Type Casting, Comments", duration: "10:00", sort_order: 2, hands_on_task: "Build a simple unit converter (km→miles, kg→lbs)", project_milestone: "—", tech_stack: "Python", difficulty: "Beginner" },
+          { id: -1.03, title: "Day 3: Strings: indexing, slicing, methods (upper/lower/strip/split/replace), f-strings", duration: "10:00", sort_order: 3, hands_on_task: "Text formatter: capitalize names, reverse string, count vowels", project_milestone: "—", tech_stack: "Python", difficulty: "Beginner" },
+          { id: -1.04, title: "Day 4: Lists, Tuples, Sets, Dictionaries — creation, indexing, CRUD operations", duration: "10:00", sort_order: 4, hands_on_task: "Student grade manager: store names + grades in dict, print sorted list", project_milestone: "—", tech_stack: "Python", difficulty: "Beginner" },
+          { id: -1.05, title: "Day 5: Conditions (if/elif/else), Loops (for/while), break/continue/pass, range()", duration: "10:00", sort_order: 5, hands_on_task: "Number guessing game with 5 attempts and hint system", project_milestone: "Start: CLI Contact Book", tech_stack: "Python", difficulty: "Beginner" },
+          { id: -1.06, title: "Day 6: Functions: def, parameters, *args, **kwargs, return, scope (local/global)", duration: "10:00", sort_order: 6, hands_on_task: "Write 5 reusable utility functions (validator, formatter, calculator)", project_milestone: "—", tech_stack: "Python", difficulty: "Beginner" },
+          { id: -1.07, title: "Day 7: OOP: Classes, Objects, __init__, instance vs class variables, self", duration: "10:00", sort_order: 7, hands_on_task: "Create a BankAccount class with deposit/withdraw/balance methods", project_milestone: "—", tech_stack: "Python", difficulty: "Beginner" },
+          { id: -1.08, title: "Day 8: OOP: Inheritance, super(), Polymorphism, Encapsulation, @property", duration: "10:00", sort_order: 8, hands_on_task: "Build Animal → Dog/Cat hierarchy with speak() polymorphism", project_milestone: "—", tech_stack: "Python", difficulty: "Beginner" },
+          { id: -1.09, title: "Day 9: File I/O (read/write txt, csv, json), Exception Handling (try/except/finally)", duration: "10:00", sort_order: 9, hands_on_task: "JSON config reader/writer with error handling", project_milestone: "—", tech_stack: "Python", difficulty: "Beginner" },
+          { id: -1.10, title: "Day 10: List Comprehensions, Lambda, map/filter/zip, Generators, Modules & Packages", duration: "10:00", sort_order: 10, hands_on_task: "Data pipeline: filter+transform a list using comprehensions & lambda", project_milestone: "✅ DELIVER: CLI Contact Book (OOP + JSON + File I/O)", tech_stack: "Python", difficulty: "Beginner" },
         ]
       },
       {
-        id: -2,
-        title: "PHASE 2 — Dev Tools & Version Control",
-        sort_order: 2,
-        isExpanded: true,
+        id: -2, title: "PHASE 2 — Dev Tools & Version Control", sort_order: 2, isExpanded: true,
         lessons: [
-          { id: -2.1, title: "Day 11: Git basics: init, add, commit, status, log, diff, .gitignore", duration: "12:00", sort_order: 1 },
-          { id: -2.2, title: "Day 12: Git branching: branch, checkout, merge, conflicts resolution", duration: "15:00", sort_order: 2 }
+          { id: -2.01, title: "Day 11: Git basics: init, add, commit, status, log, diff, .gitignore, good commit messages", duration: "10:00", sort_order: 1, hands_on_task: "Initialize Git repo for Contact Book, make 5 structured commits", project_milestone: "—", tech_stack: "Git", difficulty: "Beginner" },
+          { id: -2.02, title: "Day 12: Git branching: branch, checkout, merge, conflicts resolution, rebase intro", duration: "10:00", sort_order: 2, hands_on_task: "Create feature branch, add a feature, merge back to main", project_milestone: "—", tech_stack: "Git", difficulty: "Beginner" },
+          { id: -2.03, title: "Day 13: GitHub: remote, push, pull, clone, fork, pull requests, README writing (Markdown)", duration: "10:00", sort_order: 3, hands_on_task: "Push all Phase 1 projects to GitHub with proper README files", project_milestone: "—", tech_stack: "Git, GitHub, Markdown", difficulty: "Beginner" },
+          { id: -2.04, title: "Day 14: Docker: what/why containers, Dockerfile, images, containers, port mapping, volumes", duration: "10:00", sort_order: 4, hands_on_task: "Write Dockerfile for Expense Tracker, build & run container", project_milestone: "—", tech_stack: "Docker", difficulty: "Intermediate" },
+          { id: -2.05, title: "Day 15: Docker Compose, environment variables, .env files, multi-container setup basics", duration: "10:00", sort_order: 5, hands_on_task: "Compose file with app + postgres container; .env for secrets", project_milestone: "✅ DELIVER: All projects Dockerized & on GitHub with README", tech_stack: "Docker, Docker Compose", difficulty: "Intermediate" },
         ]
-      }
+      },
+      {
+        id: -3, title: "PHASE 3 — Data Science & Machine Learning", sort_order: 3, isExpanded: true,
+        lessons: [
+          { id: -3.01, title: "Day 16: NumPy: arrays, shape, dtype, operations, broadcasting, indexing/slicing, reshape", duration: "10:00", sort_order: 1, hands_on_task: "Matrix multiplication, normalization, and array stats exercise", project_milestone: "—", tech_stack: "NumPy", difficulty: "Intermediate" },
+          { id: -3.02, title: "Day 17: Pandas: DataFrame, Series, read_csv, head/tail/info/describe, loc/iloc", duration: "10:00", sort_order: 2, hands_on_task: "Load Titanic dataset, explore shape, dtypes, missing values", project_milestone: "Start: EDA Report Project", tech_stack: "Pandas", difficulty: "Intermediate" },
+          { id: -3.03, title: "Day 18: Data Cleaning: null handling (fillna/dropna), duplicates, dtypes conversion, rename", duration: "10:00", sort_order: 3, hands_on_task: "Clean a messy sales CSV: fix nulls, remove dupes, fix data types", project_milestone: "—", tech_stack: "Pandas", difficulty: "Intermediate" },
+          { id: -3.04, title: "Day 19: Data Analysis: groupby, merge/join, pivot_table, value_counts, apply/lambda", duration: "10:00", sort_order: 4, hands_on_task: "Sales analysis: revenue by region, top products, monthly trend", project_milestone: "—", tech_stack: "Pandas", difficulty: "Intermediate" },
+          { id: -3.05, title: "Day 20: Visualization: Matplotlib (line/bar/scatter/hist) + Seaborn (heatmap/pairplot/boxplot)", duration: "10:00", sort_order: 5, hands_on_task: "Full EDA: 6 charts on Titanic/Iris with proper titles & labels", project_milestone: "✅ DELIVER: EDA Report — Jupyter Notebook + GitHub", tech_stack: "Matplotlib, Seaborn", difficulty: "Intermediate" },
+          { id: -3.06, title: "Day 21: ML Overview: supervised/unsupervised, train/test split, feature engineering, scaling", duration: "10:00", sort_order: 6, hands_on_task: "Identify features & target for 3 datasets; apply StandardScaler", project_milestone: "—", tech_stack: "Scikit-learn", difficulty: "Intermediate" },
+          { id: -3.07, title: "Day 22: Linear Regression: theory, sklearn, MSE/RMSE/R², feature importance, prediction", duration: "10:00", sort_order: 7, hands_on_task: "House price predictor: train model, evaluate, visualize predictions", project_milestone: "—", tech_stack: "Scikit-learn", difficulty: "Intermediate" },
+          { id: -3.08, title: "Day 23: Logistic Regression, Classification metrics: accuracy, precision, recall, F1, ROC-AUC", duration: "10:00", sort_order: 8, hands_on_task: "Email spam classifier: train, evaluate, plot confusion matrix", project_milestone: "—", tech_stack: "Scikit-learn", difficulty: "Intermediate" },
+          { id: -3.09, title: "Day 24: Decision Trees, Random Forest, feature importance, overfitting vs underfitting", duration: "10:00", sort_order: 9, hands_on_task: "Titanic survival predictor with Random Forest + tuning", project_milestone: "—", tech_stack: "Scikit-learn", difficulty: "Intermediate" },
+          { id: -3.10, title: "Day 25: Model Evaluation: cross-validation, GridSearchCV, Pipeline, joblib model saving", duration: "10:00", sort_order: 10, hands_on_task: "Build full sklearn Pipeline, save model, load & predict new data", project_milestone: "✅ DELIVER: ML Classification App — CLI + saved model + GitHub", tech_stack: "Scikit-learn, joblib", difficulty: "Intermediate" },
+        ]
+      },
+      {
+        id: -4, title: "PHASE 4 — Deep Learning & Computer Vision", sort_order: 4, isExpanded: true,
+        lessons: [
+          { id: -4.01, title: "Day 26: Neural Network intuition: neurons, layers, weights, biases, activation functions", duration: "10:00", sort_order: 1, hands_on_task: "Draw & annotate a 3-layer NN architecture by hand / in draw.io", project_milestone: "—", tech_stack: "Conceptual", difficulty: "Intermediate" },
+          { id: -4.02, title: "Day 27: Keras/TensorFlow: Sequential model, Dense layers, compile (optimizer/loss), fit, evaluate", duration: "10:00", sort_order: 2, hands_on_task: "MNIST digit classifier: build, train, plot accuracy/loss curves", project_milestone: "—", tech_stack: "TensorFlow, Keras", difficulty: "Intermediate" },
+          { id: -4.03, title: "Day 28: CNNs: convolution layers, pooling, flatten — concept + small image classifier demo", duration: "10:00", sort_order: 3, hands_on_task: "CIFAR-10 mini CNN: build, train 5 epochs, visualize filters", project_milestone: "—", tech_stack: "TensorFlow, Keras", difficulty: "Intermediate" },
+          { id: -4.04, title: "Day 29: NLP basics: tokenization, stemming, TF-IDF, word embeddings, Word2Vec intuition", duration: "10:00", sort_order: 4, hands_on_task: "Tokenize a paragraph, compute TF-IDF matrix, visualize top words", project_milestone: "—", tech_stack: "NLTK, sklearn", difficulty: "Intermediate" },
+          { id: -4.05, title: "Day 30: HuggingFace: pipeline API, pre-trained models, tokenizer, inference, model hub", duration: "10:00", sort_order: 5, hands_on_task: "Load sentiment-analysis pipeline, run on 20 movie reviews", project_milestone: "✅ DELIVER: Sentiment Classifier — HuggingFace + GitHub", tech_stack: "HuggingFace Transformers", difficulty: "Intermediate" },
+        ]
+      },
+      {
+        id: -5, title: "PHASE 5 — Generative AI & LLMs", sort_order: 5, isExpanded: true,
+        lessons: [
+          { id: -5.01, title: "Day 31: LLM fundamentals: tokens, context window, temperature, top-p, system/user/assistant roles", duration: "10:00", sort_order: 1, hands_on_task: "Prompt engineering: zero-shot, few-shot, chain-of-thought exercises", project_milestone: "—", tech_stack: "OpenAI / Groq API", difficulty: "Intermediate" },
+          { id: -5.02, title: "Day 32: OpenAI/Groq API: setup, chat completions, streaming, error handling, cost awareness", duration: "10:00", sort_order: 2, hands_on_task: "Build a chatbot in 30 lines; test with 10 conversation turns", project_milestone: "Start: AI Personal Assistant", tech_stack: "Python, Groq API", difficulty: "Intermediate" },
+          { id: -5.03, title: "Day 33: LangChain: LLMs, ChatModels, PromptTemplate, LLMChain, RunnableSequence (LCEL)", duration: "10:00", sort_order: 3, hands_on_task: "Simple QA chain with custom prompt template", project_milestone: "—", tech_stack: "LangChain", difficulty: "Intermediate" },
+          { id: -5.04, title: "Day 34: LangChain Memory: ConversationBufferMemory, ConversationSummaryMemory, history management", duration: "10:00", sort_order: 4, hands_on_task: "Multi-turn chatbot that remembers context for 10+ turns", project_milestone: "—", tech_stack: "LangChain", difficulty: "Intermediate" },
+          { id: -5.05, title: "Day 35: LangChain OutputParsers, Pydantic structured output, JSON mode, error correction chains", duration: "10:00", sort_order: 5, hands_on_task: "Build an info extractor: input text → structured JSON (name/date/amount)", project_milestone: "✅ DELIVER: AI Personal Assistant — LangChain + memory + Groq API", tech_stack: "LangChain, Pydantic", difficulty: "Intermediate" },
+          { id: -5.06, title: "Day 36: RAG Architecture: why RAG, components overview (Loader→Splitter→Embedder→VectorDB→LLM)", duration: "10:00", sort_order: 6, hands_on_task: "Draw complete RAG architecture diagram with data flow annotations", project_milestone: "Start: PDF Q&A Chatbot", tech_stack: "Conceptual", difficulty: "Intermediate" },
+          { id: -5.07, title: "Day 37: Document Loaders (PDF/web/txt/CSV), Text Splitters (RecursiveCharacterTextSplitter)", duration: "10:00", sort_order: 7, hands_on_task: "Load a 20-page PDF, split with 3 different chunk sizes, compare results", project_milestone: "—", tech_stack: "LangChain, PyPDF2", difficulty: "Intermediate" },
+          { id: -5.08, title: "Day 38: Embeddings (OpenAI/HuggingFace), Vector Stores (FAISS, ChromaDB), persist & load index", duration: "10:00", sort_order: 8, hands_on_task: "Embed 50 documents, store in Chroma, measure embedding dimensions", project_milestone: "—", tech_stack: "LangChain, ChromaDB, FAISS", difficulty: "Intermediate" },
+          { id: -5.09, title: "Day 39: Retrieval strategies: similarity search, MMR, metadata filtering, score thresholds", duration: "10:00", sort_order: 9, hands_on_task: "Compare similarity vs MMR on 5 queries; analyze retrieved chunks", project_milestone: "—", tech_stack: "LangChain, ChromaDB", difficulty: "Intermediate" },
+          { id: -5.10, title: "Day 40: Full RAG pipeline: RetrievalQA / ConversationalRetrievalChain, citation sourcing, evaluation", duration: "10:00", sort_order: 10, hands_on_task: "End-to-end RAG on your own PDF: load → embed → retrieve → answer with sources", project_milestone: "✅ DELIVER: PDF Q&A Chatbot — Full RAG + Streamlit UI + GitHub", tech_stack: "LangChain, ChromaDB, Streamlit", difficulty: "Advanced" },
+        ]
+      },
+      {
+        id: -6, title: "PHASE 6 — Advanced AI Agents & Deployment", sort_order: 6, isExpanded: true,
+        lessons: [
+          { id: -6.01, title: "Day 41: Advanced RAG: HyDE (Hypothetical Document Embeddings), query expansion, step-back prompting", duration: "10:00", sort_order: 1, hands_on_task: "Implement HyDE on previous chatbot; compare answer quality before/after", project_milestone: "Start: AI Research Agent", tech_stack: "LangChain", difficulty: "Advanced" },
+          { id: -6.02, title: "Day 42: Advanced RAG: Re-ranking (Cohere/CrossEncoder), hybrid search (BM25 + semantic), parent-child chunks", duration: "10:00", sort_order: 2, hands_on_task: "Add re-ranker to RAG pipeline; compare top-5 results with/without it", project_milestone: "—", tech_stack: "LangChain, BM25", difficulty: "Advanced" },
+          { id: -6.03, title: "Day 43: RAG Evaluation: RAGAS framework — faithfulness, answer relevancy, context precision/recall", duration: "10:00", sort_order: 3, hands_on_task: "Evaluate Week 8 chatbot with RAGAS on 10 QA pairs; generate report", project_milestone: "—", tech_stack: "RAGAS", difficulty: "Advanced" },
+          { id: -6.04, title: "Day 44: LangGraph: StateGraph, nodes, edges, state schema, why graphs > chains for agents", duration: "10:00", sort_order: 4, hands_on_task: "Build a simple 3-node graph: input → process → output with state", project_milestone: "—", tech_stack: "LangGraph", difficulty: "Advanced" },
+          { id: -6.05, title: "Day 45: LangGraph: conditional edges, cycles/loops, human-in-the-loop checkpointing, persistence", duration: "10:00", sort_order: 5, hands_on_task: "Build an approval workflow agent: AI drafts → human reviews → revise or approve", project_milestone: "—", tech_stack: "LangGraph", difficulty: "Advanced" },
+          { id: -6.06, title: "Day 46: AI Agents: ReAct pattern, tool use, planning, observation loop, agent executor", duration: "10:00", sort_order: 6, hands_on_task: "Manually trace a ReAct loop on paper; then implement with LangChain AgentExecutor", project_milestone: "—", tech_stack: "LangChain Agents", difficulty: "Advanced" },
+          { id: -6.07, title: "Day 47: LangChain Tools: built-in (Tavily/DuckDuckGo/Wikipedia) + custom tool creation with @tool", duration: "10:00", sort_order: 7, hands_on_task: "Build a research tool: web_search + calculator + custom weather tool", project_milestone: "—", tech_stack: "LangChain, Tavily API", difficulty: "Advanced" },
+          { id: -6.08, title: "Day 48: Multi-agent systems: supervisor pattern, worker agents, LangGraph multi-agent orchestration", duration: "10:00", sort_order: 8, hands_on_task: "Build a 2-agent system: Researcher + Writer, orchestrated by Supervisor", project_milestone: "—", tech_stack: "LangGraph, LangChain", difficulty: "Advanced" },
+          { id: -6.09, title: "Day 49: FastAPI: routes, path/query params, request body, Pydantic models, async, dependency injection", duration: "10:00", sort_order: 9, hands_on_task: "Wrap ML classifier as REST API: POST /predict → return prediction + confidence", project_milestone: "—", tech_stack: "FastAPI, Pydantic", difficulty: "Advanced" },
+          { id: -6.10, title: "Day 50: Deployment: FastAPI + LangChain + Docker + .env + GitHub Actions CI intro", duration: "10:00", sort_order: 10, hands_on_task: "Dockerize AI Research Agent with FastAPI endpoint; test with Postman/curl", project_milestone: "✅ DELIVER: AI Research Agent — LangGraph + FastAPI + Docker + GitHub", tech_stack: "FastAPI, Docker, LangGraph", difficulty: "Advanced" },
+        ]
+      },
+      {
+        id: -7, title: "PHASE 7 — Portfolio, Career & Job Readiness", sort_order: 7, isExpanded: true,
+        lessons: [
+          { id: -7.01, title: "Day 51: Streamlit: st.chat_message, st.sidebar, file_uploader, session_state, deploy on Streamlit Cloud", duration: "10:00", sort_order: 1, hands_on_task: "Convert PDF Q&A Chatbot to polished Streamlit app with file upload", project_milestone: "Start: Final Capstone Project", tech_stack: "Streamlit", difficulty: "Intermediate" },
+          { id: -7.02, title: "Day 52: Final Capstone Planning: architecture design, tech stack decision, GitHub repo setup, task breakdown", duration: "10:00", sort_order: 2, hands_on_task: "Create GitHub repo, write architecture doc, set up project board with issues", project_milestone: "—", tech_stack: "GitHub, Draw.io", difficulty: "Intermediate" },
+          { id: -7.03, title: "Day 53: Final Capstone Build Day 1: core pipeline (data ingestion, LLM chain, agent logic)", duration: "10:00", sort_order: 3, hands_on_task: "Core backend working: can process input and return AI output", project_milestone: "—", tech_stack: "LangChain/LangGraph, FastAPI", difficulty: "Advanced" },
+          { id: -7.04, title: "Day 54: Final Capstone Build Day 2: UI integration, API endpoints, error handling, loading states", duration: "10:00", sort_order: 4, hands_on_task: "Frontend connected to backend; all happy paths working", project_milestone: "—", tech_stack: "Streamlit/React, FastAPI", difficulty: "Advanced" },
+          { id: -7.05, title: "Day 55: Final Capstone Polish: README (badges, demo GIF, architecture diagram), code cleanup, demo video", duration: "10:00", sort_order: 5, hands_on_task: "Push final version to GitHub; record 2-min Loom demo; deploy on Streamlit Cloud", project_milestone: "✅ DELIVER: Final Capstone — Full AI App Deployed + Demo Video", tech_stack: "All Stack", difficulty: "Advanced" },
+          { id: -7.06, title: "Day 56: Resume Writing Workshop: AI Engineer resume template, quantified bullet points, ATS optimization", duration: "10:00", sort_order: 6, hands_on_task: "Write resume using template; add bullet points for all 9 portfolio projects", project_milestone: "—", tech_stack: "Canva / Overleaf", difficulty: "Soft Skill" },
+          { id: -7.07, title: "Day 57: LinkedIn Optimization: headline formula, about section, featured projects, skills section, posting strategy", duration: "10:00", sort_order: 7, hands_on_task: "Update LinkedIn with new headline, featured section with 3 top projects", project_milestone: "—", tech_stack: "LinkedIn", difficulty: "Soft Skill" },
+          { id: -7.08, title: "Day 58: GitHub Portfolio Review: pinned repos, README quality audit, contribution graph, profile README", duration: "10:00", sort_order: 8, hands_on_task: "Audit all 9 repos: add badges, fix READMEs, pin top 6 repos, write profile README", project_milestone: "—", tech_stack: "GitHub", difficulty: "Soft Skill" },
+          { id: -7.09, title: "Day 59: Mock Technical Interview: Python OOP, LangChain internals, RAG architecture, LangGraph, system design", duration: "10:00", sort_order: 9, hands_on_task: "Answer 15 technical questions; record yourself; identify weak areas", project_milestone: "—", tech_stack: "Interview Prep", difficulty: "Soft Skill" },
+          { id: -7.10, title: "Day 60: Mock HR Interview + Job Search Strategy: salary negotiation, LinkedIn outreach, Upwork profile, local market", duration: "10:00", sort_order: 10, hands_on_task: "Draft cold outreach message; set up Upwork profile; apply to 5 jobs today", project_milestone: "✅ COURSE COMPLETE — Portfolio Ready, Interview Ready, Job Ready! 🎉", tech_stack: "Career Tools", difficulty: "Soft Skill" },
+        ]
+      },
     ];
     setSections(template);
-    toast.success("Loaded AI Engineer roadmap template!");
+    toast.success("✅ Loaded complete 60-Day AI Engineer roadmap (7 Phases, 60 lessons)!");
   };
 
   // ========================================================
