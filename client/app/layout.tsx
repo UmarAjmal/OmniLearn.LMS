@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ToastContainer } from "react-toastify";
 import "./globals.css";
+import Navigation from "../components/Navigation";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -30,7 +31,9 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body-md overflow-x-hidden selection:bg-gold-accent/30 min-h-screen">
-        {children}
+        <Navigation>
+          {children}
+        </Navigation>
         <ToastContainer
           position="bottom-right"
           autoClose={5000}

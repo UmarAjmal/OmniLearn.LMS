@@ -1,19 +1,30 @@
+/* stylelint-disable at-rule-no-unknown */
 @import "tailwindcss";
 @import "react-toastify/dist/ReactToastify.css";
 
 @theme inline {
   --color-gold-accent: #FCA311;
   --color-navy-accent: #14213D;
-  --color-cream-accent: #F2CC8F;
-  --color-primary: #c6c6c6;
-  --color-surface: #121414;
-  --color-on-surface: #e2e2e2;
-  --color-on-surface-variant: #cfc4c5;
+  --color-cream-accent: #f2cc8f;
+  --color-light-gray: #E5E5E5;
+  --color-primary: #FCA311;
+  --color-surface: #000000;
+  --color-on-surface: #E5E5E5;
+  --color-on-surface-variant: #f2cc8f;
+  --color-primary-container: #FCA311;
+  --color-on-primary-container: #000000;
+  --color-surface-container-lowest: #000000;
+  --color-surface-container-low: #14213D;
+  --color-surface-container: #14213D;
+  --color-surface-container-high: #14213D;
+  --color-surface-variant: #14213D;
+  --color-outline-variant: #f2cc8f;
+  --color-surface-bright: #E5E5E5;
 }
 
 :root {
   --background: #000000;
-  --foreground: #e2e2e2;
+  --foreground: #E5E5E5;
 }
 
 body {
@@ -23,14 +34,14 @@ body {
 }
 
 .glass-card {
-  background: rgba(20, 33, 61, 0.5);
+  background: rgba(20, 33, 61, 0.45);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(242, 204, 143, 0.15);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
 }
 
 .glass-sidebar {
-  background: rgba(20, 33, 61, 0.6);
+  background: rgba(20, 33, 61, 0.55);
   backdrop-filter: blur(30px);
   border-right: 1px solid rgba(242, 204, 143, 0.1);
 }
@@ -49,4 +60,3 @@ body {
   background: rgba(252, 163, 17, 0.2);
   border-radius: 10px;
 }
-
