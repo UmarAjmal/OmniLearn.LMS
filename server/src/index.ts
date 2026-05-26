@@ -11,6 +11,11 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Root route so it doesn't show "Cannot GET /"
+app.get('/', (req, res) => {
+  res.send('OmniLearn LMS Backend API is running perfectly!');
+});
+
 app.get('/api/health', async (req, res) => {
   try {
     // Testing the direct database connection
