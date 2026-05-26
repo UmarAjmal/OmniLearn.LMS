@@ -807,8 +807,54 @@ export default function CreateCourse() {
   };
 
   // ========================================================
-  // STEP 3 ACTIONS: MEDIA UPLOADS
+  // DOWNLOAD SAMPLE EXCEL TEMPLATE
   // ========================================================
+  const handleDownloadSampleTemplate = async () => {
+    try {
+      toast.info("⬇️ Preparing sample template...");
+      const XLSX = await loadSheetJS();
+
+      // Header row
+      const headers = [
+        "Day", "Week", "Phase", "Topics Covered",
+        "Hands-on Task / Exercise", "Project Milestone", "Tech Stack", "Difficulty"
+      ];
+
+      // Sample rows — 5 days across 2 phases
+      const rows = [
+        [1, "Week 1", "PHASE 1 — Foundations", "Environment Setup: install tools, folder structure, Hello World",   "Create virtual environment, install deps, run Hello World", "—", "Python, VS Code", "Beginner"],
+        [2, "Week 1", "PHASE 1 — Foundations", "Variables, Data Types, Type Casting, Comments",                     "Build a unit converter (km→miles, kg→lbs)",              "—", "Python",          "Beginner"],
+        [3, "Week 1", "PHASE 1 — Foundations", "Conditions, Loops (for/while), break/continue",                   "Number guessing game with 5 attempts",                   "Start: Mini Project", "Python",        "Beginner"],
+        [4, "Week 2", "PHASE 2 — Core Skills", "Functions: def, *args, **kwargs, return, scope",                  "Write 5 reusable utility functions",                     "—", "Python",          "Beginner"],
+        [5, "Week 2", "PHASE 2 — Core Skills", "OOP: Classes, __init__, inheritance, polymorphism",               "BankAccount class with deposit/withdraw/balance",         "✅ DELIVER: Mini Project v1", "Python", "Intermediate"],
+      ];
+
+      const wsData = [headers, ...rows];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // Style column widths for readability
+      ws["!cols"] = [
+        { wch: 6 },   // Day
+        { wch: 8 },   // Week
+        { wch: 28 },  // Phase
+        { wch: 52 },  // Topics Covered
+        { wch: 50 },  // Hands-on Task
+        { wch: 38 },  // Project Milestone
+        { wch: 20 },  // Tech Stack
+        { wch: 14 },  // Difficulty
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Curriculum");
+      XLSX.writeFile(wb, "OmniLearn_Curriculum_Template.xlsx");
+      toast.success("✅ Sample template downloaded! Fill it in and re-upload.");
+    } catch (err) {
+      toast.error("Failed to generate template. Try again.");
+      console.error(err);
+    }
+  };
+
+
   const handleStartSimulatedUpload = (lessonId: number) => {
     setSelectedLessonId(lessonId);
     setUploadProgress(0);
@@ -2003,6 +2049,19 @@ export default function CreateCourse() {
 
                   <p className="text-[9px] text-on-surface-variant italic leading-relaxed">
                     💡 <strong>Tip:</strong> If your sheet is structured day-by-day (like the `AI roadmap.xlsx`), the parser will group the lessons seamlessly.
+                  </p>
+
+                  {/* Download Sample Template CTA */}
+                  <button
+                    type="button"
+                    onClick={handleDownloadSampleTemplate}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/15 hover:border-emerald-500/60 text-emerald-400 transition-all text-[11px] font-bold group"
+                  >
+                    <span className="material-symbols-outlined text-sm group-hover:animate-bounce" style={{ fontVariationSettings: "'FILL' 1" }}>download</span>
+                    Download Sample .xlsx Template
+                  </button>
+                  <p className="text-[9px] text-on-surface-variant/60 text-center">
+                    Fill in the downloaded file &amp; re-upload here
                   </p>
                 </div>
 
