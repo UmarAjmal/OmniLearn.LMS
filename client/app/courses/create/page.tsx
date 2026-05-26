@@ -1683,129 +1683,299 @@ export default function CreateCourse() {
                 >
                   Back
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep(4)}
-                  className="px-8 py-3 rounded-lg bg-primary-container text-on-primary-container font-label-md font-bold shadow-lg shadow-primary-container/20 hover:shadow-primary-container/40 hover:translate-y-[-2px] transition-all active:scale-95 cursor-pointer text-sm"
-                >
-                  Next Step: Pricing
-                </button>
+                <div className="flex items-center gap-3">
+                  {/* Media is OPTIONAL — instructor can skip and come back anytime */}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(4)}
+                    className="px-5 py-3 rounded-lg border border-outline-variant/30 text-on-surface-variant font-label-md hover:bg-surface-variant/10 transition-all active:scale-95 cursor-pointer text-sm flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-sm">skip_next</span>
+                    Skip for now → Review
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(4)}
+                    className="px-8 py-3 rounded-lg bg-primary-container text-on-primary-container font-label-md font-bold shadow-lg shadow-primary-container/20 hover:shadow-primary-container/40 hover:translate-y-[-2px] transition-all active:scale-95 cursor-pointer text-sm flex items-center gap-1"
+                  >
+                    Next: Review & Publish
+                    <span className="material-symbols-outlined text-sm font-bold">arrow_forward</span>
+                  </button>
+                </div>
               </div>
+
 
             </div>
           )}
 
           {/* ========================================================
-              STEP 4: PRICING & REVIEW PUBLISH CONTENT
+              STEP 4: REVIEW & PUBLISH
               ======================================================== */}
           {currentStep === 4 && (
             <div className="p-8 md:p-10 space-y-8 animate-fadeIn">
-              
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                
-                {/* Course Card Live Preview (Left 5/12) */}
-                <div className="lg:col-span-5 space-y-3">
-                  <h4 className="text-xs text-on-surface-variant font-bold uppercase tracking-wider">Dynamic Live Card Preview</h4>
-                  
-                  {/* Dynamic Rendering Card */}
-                  <div className="glass-card rounded-lg overflow-hidden flex flex-col group border border-white/10 hover:shadow-[0_0_20px_rgba(252,163,17,0.15)] transition-all duration-300">
-                    <div className="h-44 relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10"></div>
-                      <img
-                        className="w-full h-full object-cover"
-                        src={thumbnailUrl}
-                        alt="Course Thumbnail Preview"
-                      />
-                      <div className="absolute bottom-4 left-4 z-20 flex gap-2">
-                        <span className="px-3 py-1 bg-gold-accent text-black text-[10px] font-bold uppercase rounded-full tracking-wider">
-                          {category}
-                        </span>
-                        <span className="px-3 py-1 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold uppercase rounded-full tracking-wider">
-                          {sections.flatMap(s => s.lessons).length} Lessons
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="p-5 flex flex-col flex-1 bg-surface-container-low/20">
-                      <h3 className="text-base font-bold text-white mb-2 truncate">
-                        {title || "Untitled Course"}
-                      </h3>
-                      <p className="text-xs text-on-surface-variant line-clamp-2 mb-4">
-                        {description || "No description provided yet."}
-                      </p>
-                      
-                      <div className="mt-auto flex justify-between items-center pt-2 border-t border-white/5">
-                        <span className="text-lg font-extrabold text-white font-mono">
-                          ${parseFloat(price).toFixed(2)}
-                        </span>
-                        <span className="text-xs bg-primary-container/20 text-primary-container px-2 py-0.5 rounded font-bold uppercase tracking-wide">
-                          Live Preview
-                        </span>
-                      </div>
-                    </div>
+
+              {/* Page Header */}
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-on-surface-variant mb-2">
+                    <span className="material-symbols-outlined text-sm">arrow_back</span>
+                    <button type="button" onClick={() => setCurrentStep(3)} className="font-label-md text-xs hover:text-primary transition-colors cursor-pointer">
+                      Back to Media
+                    </button>
                   </div>
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary-container" style={{ fontVariationSettings: "'FILL' 1" }}>rocket_launch</span>
+                    Review &amp; Publish
+                  </h3>
+                  <p className="text-xs text-on-surface-variant mt-1">You're almost there. Preview your content and confirm publishing details.</p>
                 </div>
+                {/* Optional: media badge */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20">
+                  <span className="material-symbols-outlined text-sm text-amber-400">info</span>
+                  <span className="text-[10px] text-amber-400 font-bold">Media is optional — you can add it later</span>
+                </div>
+              </div>
 
-                {/* Final Configurations (Right 7/12) */}
-                <div className="lg:col-span-7 space-y-6 flex flex-col justify-between">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="font-headline-lg text-xl font-bold text-white mb-1">
-                        Pricing & Availability
-                      </h3>
-                      <p className="text-xs text-on-surface-variant">Configure standard pricing and release details before launching.</p>
-                    </div>
+              {/* Main Review Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-                    {/* Price Input */}
-                    <div className="space-y-2 max-w-xs">
-                      <label className="font-label-md text-xs text-on-surface-variant font-semibold">Standard Cost (USD)</label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-on-surface-variant font-mono text-sm">$</span>
-                        <input
-                          value={price}
-                          onChange={(e) => setPrice(e.target.value)}
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="w-full bg-surface-container-lowest/50 border border-outline-variant/30 rounded-lg pl-8 pr-4 py-3 text-body-md focus:border-primary-container focus:ring-1 focus:ring-primary-container font-mono outline-none text-sm"
-                        />
-                      </div>
-                    </div>
+                {/* LEFT: Course Summary + Curriculum (8/12) */}
+                <div className="lg:col-span-8 space-y-6">
 
-                    {/* Simple summary checklist */}
-                    <div className="p-4 rounded-lg bg-surface-container-lowest/30 border border-outline-variant/20 space-y-2">
-                      <h5 className="text-xs text-white font-bold uppercase tracking-wide mb-1">Course Summary</h5>
-                      <div className="grid grid-cols-2 gap-2 text-xs text-on-surface-variant">
-                        <p>Total Sections: <span className="text-white font-bold">{sections.length}</span></p>
-                        <p>Total Lessons: <span className="text-white font-bold">{sections.flatMap(s => s.lessons).length}</span></p>
-                        <p>Thumbnail: <span className="text-emerald-400 font-bold">Configured</span></p>
-                        <p>Price Point: <span className="text-primary-container font-bold">${price}</span></p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Form Footer Actions */}
-                  <div className="flex items-center justify-between pt-6 border-t border-outline-variant/10">
+                  {/* Course Summary Card */}
+                  <div className="glass-panel inner-glow-border p-6 rounded-xl relative group">
                     <button
                       type="button"
-                      onClick={() => setCurrentStep(3)}
-                      className="px-6 py-3 rounded-lg border border-outline-variant/30 text-on-surface font-label-md hover:bg-surface-variant/20 transition-all active:scale-95 cursor-pointer text-sm"
+                      onClick={() => setCurrentStep(1)}
+                      className="absolute top-5 right-5 p-2 rounded-lg hover:bg-white/10 text-on-surface-variant transition-colors"
+                      title="Edit course details"
                     >
-                      Back
+                      <span className="material-symbols-outlined text-lg">edit</span>
                     </button>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="px-3 py-1 bg-primary-container/10 border border-primary-container/30 text-[10px] uppercase tracking-widest text-primary-container rounded-full">
+                          {category}
+                        </span>
+                        <span className="text-on-surface-variant text-xs">•</span>
+                        <span className="text-on-surface-variant text-xs font-semibold">
+                          {sections.flatMap(s => s.lessons).length} Lessons · {sections.length} Sections
+                        </span>
+                      </div>
+                      <h2 className="text-lg font-bold text-white leading-tight">
+                        {title || <span className="text-on-surface-variant italic">Untitled Course</span>}
+                      </h2>
+                      <p className="text-sm text-on-surface-variant leading-relaxed line-clamp-3">
+                        {description || "No description provided yet. Click edit to add one."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Curriculum Structure */}
+                  <div className="glass-panel inner-glow-border p-6 rounded-xl">
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-base font-bold text-white">Curriculum Structure</h3>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] text-on-surface-variant">
+                          {sections.length} sections · {sections.flatMap(s => s.lessons).length} lessons
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setCurrentStep(2)}
+                          className="text-primary-container text-[11px] font-bold flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-xs">edit</span>
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+
+                    {sections.length === 0 ? (
+                      <div className="text-center py-10 text-on-surface-variant">
+                        <span className="material-symbols-outlined text-4xl block mb-3 opacity-40">menu_book</span>
+                        <p className="text-sm">No curriculum yet.</p>
+                        <button type="button" onClick={() => setCurrentStep(2)} className="mt-3 text-primary-container text-xs font-bold hover:underline cursor-pointer">Build curriculum →</button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
+                        {sections.map((s, sIdx) => (
+                          <details key={s.id} className="border border-outline-variant/20 rounded-xl bg-surface-variant/10 overflow-hidden group/mod" open={sIdx === 0}>
+                            <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors list-none">
+                              <div className="flex items-center gap-3">
+                                <span className="material-symbols-outlined text-primary-container text-sm group-open/mod:rotate-90 transition-transform duration-200">chevron_right</span>
+                                <div>
+                                  <h4 className="text-sm font-bold text-white">{s.title}</h4>
+                                  <p className="text-[10px] text-on-surface-variant">{s.lessons.length} Lessons</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] bg-primary-container/10 text-primary-container px-2 py-0.5 rounded-full font-bold">S{sIdx + 1}</span>
+                            </summary>
+                            <div className="px-4 pb-3 border-t border-outline-variant/10 pt-2 space-y-1">
+                              {s.lessons.map((l, lIdx) => (
+                                <div key={l.id} className="flex items-center justify-between py-1.5 border-b border-outline-variant/10 last:border-0 pl-6 group">
+                                  <div className="flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-on-surface-variant text-sm">
+                                      {l.media_url ? "play_circle" : "radio_button_unchecked"}
+                                    </span>
+                                    <span className="text-[11px] text-on-surface-variant group-hover:text-white transition-colors truncate max-w-xs">
+                                      {String(lIdx + 1).padStart(2, '0')}. {l.title}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    {l.media_url && <span className="text-[9px] text-emerald-400 font-bold">✅ media</span>}
+                                    <span className="text-[10px] text-on-surface-variant font-mono bg-white/5 px-1.5 py-0.5 rounded">{l.duration}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+
+                {/* RIGHT: Thumbnail + Checklist + Price + Actions (4/12) */}
+                <div className="lg:col-span-4 space-y-5">
+
+                  {/* Thumbnail Preview */}
+                  <div className="glass-panel inner-glow-border p-5 rounded-xl">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Course Thumbnail</h4>
+                      <button type="button" onClick={() => setCurrentStep(1)} className="text-primary-container text-[11px] hover:underline cursor-pointer">Replace</button>
+                    </div>
+                    <div className="aspect-video rounded-xl overflow-hidden border border-outline-variant/20 group cursor-pointer relative shadow-inner">
+                      <img
+                        src={thumbnailUrl}
+                        alt="Course Preview"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                      />
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="material-symbols-outlined text-white text-3xl">zoom_in</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Readiness Checklist */}
+                  <div className="glass-panel inner-glow-border p-5 rounded-xl">
+                    <h4 className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-4">Readiness Checklist</h4>
+                    <div className="space-y-3">
+                      {/* Info check */}
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          title.trim() ? "bg-primary-container" : "border border-outline-variant/40"
+                        }`}>
+                          {title.trim()
+                            ? <span className="material-symbols-outlined text-on-primary text-sm">check</span>
+                            : <span className="w-2 h-2 rounded-full bg-on-surface-variant/40"></span>
+                          }
+                        </div>
+                        <span className="text-sm text-on-surface">Course info filled</span>
+                        {!title.trim() && <button type="button" onClick={() => setCurrentStep(1)} className="ml-auto text-[10px] text-primary-container hover:underline cursor-pointer">Set now</button>}
+                      </div>
+                      {/* Curriculum check */}
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          sections.length > 0 && sections.flatMap(s => s.lessons).length > 0
+                            ? "bg-primary-container"
+                            : "border border-outline-variant/40"
+                        }`}>
+                          {sections.length > 0 && sections.flatMap(s => s.lessons).length > 0
+                            ? <span className="material-symbols-outlined text-on-primary text-sm">check</span>
+                            : <span className="w-2 h-2 rounded-full bg-on-surface-variant/40"></span>
+                          }
+                        </div>
+                        <span className="text-sm text-on-surface">Curriculum complete</span>
+                        {(sections.length === 0) && <button type="button" onClick={() => setCurrentStep(2)} className="ml-auto text-[10px] text-primary-container hover:underline cursor-pointer">Build</button>}
+                      </div>
+                      {/* Thumbnail check */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-primary-container">
+                          <span className="material-symbols-outlined text-on-primary text-sm">check</span>
+                        </div>
+                        <span className="text-sm text-on-surface">Thumbnail configured</span>
+                      </div>
+                      {/* Media check (optional) */}
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          sections.flatMap(s => s.lessons).some(l => l.media_url)
+                            ? "bg-primary-container"
+                            : "border border-amber-500/30"
+                        }`}>
+                          {sections.flatMap(s => s.lessons).some(l => l.media_url)
+                            ? <span className="material-symbols-outlined text-on-primary text-sm">check</span>
+                            : <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                          }
+                        </div>
+                        <span className="text-sm text-on-surface">Media attached</span>
+                        <span className="ml-auto text-[9px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full">Optional</span>
+                      </div>
+                      {/* Pricing check */}
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          parseFloat(price) > 0 ? "bg-primary-container" : "border border-outline-variant/40"
+                        }`}>
+                          {parseFloat(price) > 0
+                            ? <span className="material-symbols-outlined text-on-primary text-sm">check</span>
+                            : <span className="w-2 h-2 rounded-full bg-on-surface-variant/40"></span>
+                          }
+                        </div>
+                        <span className="text-sm text-on-surface">Pricing set</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Price Input */}
+                  <div className="glass-panel inner-glow-border p-5 rounded-xl space-y-3">
+                    <h4 className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Course Price (USD)</h4>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-on-surface-variant font-mono text-sm">$</span>
+                      <input
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="w-full bg-surface-container-lowest/50 border border-outline-variant/30 rounded-lg pl-8 pr-4 py-3 font-mono focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none text-sm"
+                        placeholder="0.00"
+                      />
+                    </div>
+                    {parseFloat(price) === 0 && (
+                      <p className="text-[10px] text-amber-400">ℹ️ Price 0 = Free course for all students</p>
+                    )}
+                  </div>
+
+                  {/* Action Panel */}
+                  <div className="glass-panel inner-glow-border p-5 rounded-xl bg-surface-container-high/50 space-y-4">
+                    <p className="text-[10px] text-on-surface-variant text-center italic">
+                      Once published, students can start enrolling immediately.
+                    </p>
                     <button
                       type="button"
                       onClick={handlePublishCourse}
-                      disabled={isPublishing}
-                      className="px-10 py-3 rounded-lg bg-gradient-to-r from-primary-container to-amber-500 text-on-primary-container font-label-md font-bold shadow-lg shadow-primary-container/40 hover:shadow-primary-container/60 hover:scale-105 transition-all active:scale-95 cursor-pointer text-sm flex items-center gap-1.5 border border-white/10"
+                      disabled={isPublishing || !title.trim()}
+                      className="w-full py-4 bg-gradient-to-r from-primary-container to-amber-500 text-on-primary-container font-bold rounded-xl shadow-lg shadow-primary-container/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 border border-white/10 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-sm"
                     >
+                      <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>rocket_launch</span>
                       {isPublishing ? "Publishing..." : "Publish Course"}
-                      <span className="material-symbols-outlined text-sm font-bold">arrow_forward</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => toast.info("Draft saved! You can continue editing anytime.")}
+                      className="w-full py-3 bg-transparent border border-outline-variant/30 text-on-surface font-medium rounded-xl hover:bg-surface-variant/20 transition-all cursor-pointer text-sm"
+                    >
+                      Save as Draft
+                    </button>
+                    <div className="flex items-center justify-center gap-1 pt-1">
+                      <span className="material-symbols-outlined text-xs text-on-surface-variant">info</span>
+                      <p className="text-[9px] text-on-surface-variant">
+                        You can always edit media, curriculum &amp; pricing after publishing.
+                      </p>
+                    </div>
                   </div>
 
                 </div>
-
               </div>
 
             </div>
