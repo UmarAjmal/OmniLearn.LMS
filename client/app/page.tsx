@@ -38,7 +38,7 @@ export default function Dashboard() {
           <span className="text-xl font-headline font-semibold tracking-tight text-primary">
             Glacier
           </span>
-          <div className="hidden md:flex gap-6 ml-10">
+          {/* <div className="hidden md:flex gap-6 ml-10">
             <a
               className="text-primary font-semibold border-b-2 border-primary pb-1 font-body-md text-sm"
               href="#"
@@ -57,7 +57,7 @@ export default function Dashboard() {
             >
               Team
             </a>
-          </div>
+          </div> */}
         </div>
         <div className="flex items-center gap-4">
           <div className="relative hidden sm:block">

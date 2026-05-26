@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import WebSocket from 'ws';
 
 dotenv.config();
 
@@ -26,11 +27,19 @@ pool.on('error', (err) => {
 });
 
 // 2. Supabase Data API Client (For Auth and simplified fetches if needed)
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.SUPABASE_URL ? process.env.SUPABASE_URL.trim() : '';
+const supabaseKey = process.env.SUPABASE_ANON_KEY ? process.env.SUPABASE_ANON_KEY.trim() : '';
 
 export const supabase = supabaseUrl.startsWith('http') 
-  ? createClient(supabaseUrl, supabaseKey) 
+  ? createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false },
+      realtime: {
+        transport: WebSocket,
+      },
+      global: {
+        WebSocket,
+      },
+    }) 
   : null;
 
 
