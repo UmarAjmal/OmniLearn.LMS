@@ -4,10 +4,13 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// 1. Direct PostgreSQL Connection (using credentials from text.txt)
-const dbUrl = process.env.DATABASE_URL;
+// 1. Direct PostgreSQL Connection
 export const pool = new Pool({
-  connectionString: dbUrl,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME,
   ssl: {
     rejectUnauthorized: false
   }
