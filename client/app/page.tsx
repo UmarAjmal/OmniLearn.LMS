@@ -228,15 +228,26 @@ export default function LoginPage() {
             </div>
 
             {/* Footer */}
-            <p className="mt-12 text-center text-xs text-on-surface-variant font-light">
-              Don't have an account?{" "}
-              <button
-                onClick={() => toast.info("Please contact administrative executive support for dynamic logins.")}
-                className="text-primary font-semibold hover:underline bg-transparent border-none cursor-pointer"
-              >
-                Contact Admin
-              </button>
-            </p>
+            <div className="mt-12 text-center text-xs text-on-surface-variant font-light space-y-4">
+              <p>
+                Don't have an account?{" "}
+                <button
+                  onClick={() => toast.info("Please contact administrative executive support for dynamic logins.")}
+                  className="text-primary font-semibold hover:underline bg-transparent border-none cursor-pointer"
+                >
+                  Contact Admin
+                </button>
+              </p>
+              <p>
+                Are you a student?{" "}
+                <button
+                  onClick={() => router.push("/signup/student")}
+                  className="text-primary font-semibold hover:underline bg-transparent border-none cursor-pointer text-sm tracking-wider"
+                >
+                  Sign Up as Student
+                </button>
+              </p>
+            </div>
           </div>
         </div>
       </div>
