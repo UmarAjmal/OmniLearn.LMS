@@ -112,12 +112,14 @@ function ApplicantCard({ applicant, onApprove, onReject }: { applicant: any, onA
   );
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+
 export default function ApplicantsPage() {
   const router = useRouter();
   const [applicants, setApplicants] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/applicants")
+    fetch(`${API_BASE_URL}/api/applicants`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -129,7 +131,7 @@ export default function ApplicantsPage() {
 
   const handleApprove = async (id: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/applicants/${id}/approve`, {
+      const res = await fetch(`${API_BASE_URL}/api/applicants/${id}/approve`, {
         method: 'POST'
       });
       const data = await res.json();
@@ -146,7 +148,7 @@ export default function ApplicantsPage() {
 
   const handleReject = async (id: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/applicants/${id}/reject`, {
+      const res = await fetch(`${API_BASE_URL}/api/applicants/${id}/reject`, {
         method: 'POST'
       });
       const data = await res.json();

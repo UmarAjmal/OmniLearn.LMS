@@ -560,6 +560,32 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// ==========================================
+// REGISTERED STUDENTS ROUTES
+// ==========================================
+
+// Get all registered students
+app.get('/api/students', async (req, res) => {
+  try {
+    const query = `
+      SELECT s.*, u.email 
+      FROM students s 
+      JOIN users u ON s.user_id = u.id 
+      ORDER BY s.created_at DESC
+    `;
+    const result = await pool.query(query);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.listen(PORT, async () => {
   console.log(`Server is running on http://localhost:${PORT}`);
+  try {
+    await pool.query("ALTER TABLE applicants ADD COLUMN IF NOT EXISTS program VARCHAR(100)");
+    console.log('✅ "applicants" table program column auto-migrated successfully!');
+  } catch (dbErr: any) {
+    console.error("Database self-correction failed:", dbErr.message);
+  }
 });
