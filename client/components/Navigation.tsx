@@ -200,6 +200,20 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
             </span>
             <span className="font-body-md text-sm font-semibold">Courses</span>
           </Link>
+          <Link
+            href="/students"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
+              pathname.startsWith("/students")
+                ? "bg-primary/10 text-primary border-l-4 border-primary" 
+                : "text-on-surface-variant hover:text-white hover:bg-white/10"
+            }`}
+          >
+            <span className="material-symbols-outlined" data-icon="group">
+              group
+            </span>
+            <span className="font-body-md text-sm font-semibold">Students</span>
+          </Link>
           <a
             className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
             href="#"
