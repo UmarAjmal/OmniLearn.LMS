@@ -1,0 +1,14 @@
+pwd:Mu@17933082@Mu
+host:
+aws-1-ap-southeast-2.pooler.supabase.com
+
+port:
+5432
+
+database:
+postgres
+
+user:
+postgres.aeyrpxnebtvmionxekbj
+
+postgresql://postgres.aeyrpxnebtvmionxekbj:Mu@17933082@Mu@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres

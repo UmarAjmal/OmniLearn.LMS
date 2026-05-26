@@ -1,0 +1,52 @@
+@import "tailwindcss";
+@import "react-toastify/dist/ReactToastify.css";
+
+@theme inline {
+  --color-gold-accent: #FCA311;
+  --color-navy-accent: #14213D;
+  --color-cream-accent: #F2CC8F;
+  --color-primary: #c6c6c6;
+  --color-surface: #121414;
+  --color-on-surface: #e2e2e2;
+  --color-on-surface-variant: #cfc4c5;
+}
+
+:root {
+  --background: #000000;
+  --foreground: #e2e2e2;
+}
+
+body {
+  background: radial-gradient(circle at top right, #14213D 0%, #000000 100%);
+  min-height: 100vh;
+  color: var(--foreground);
+}
+
+.glass-card {
+  background: rgba(20, 33, 61, 0.5);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(242, 204, 143, 0.15);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-sidebar {
+  background: rgba(20, 33, 61, 0.6);
+  backdrop-filter: blur(30px);
+  border-right: 1px solid rgba(242, 204, 143, 0.1);
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(252, 163, 17, 0.2);
+  border-radius: 10px;
+}
+
