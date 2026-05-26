@@ -11,6 +11,10 @@ interface Lesson {
   duration: string;
   media_url?: string;
   sort_order: number;
+  hands_on_task?: string;
+  project_milestone?: string;
+  tech_stack?: string;
+  difficulty?: string;
 }
 
 interface Section {
@@ -46,6 +50,7 @@ export default function CreateCourse() {
   const [isParsingFile, setIsParsingFile] = useState(false);
   const [importedSectionsPreview, setImportedSectionsPreview] = useState<Section[]>([]);
   const [selectedSheetName, setSelectedSheetName] = useState("");
+  const [expandedLessonId, setExpandedLessonId] = useState<number | null>(null);
 
   // Step 3: Media Upload Simulator States
   const [selectedLessonId, setSelectedLessonId] = useState<number | null>(null);
@@ -404,9 +409,7 @@ export default function CreateCourse() {
       lines.push(row);
     }
     return lines;
-  };
-
-  // Process selected grid data (from CSV or Excel)
+  };  // Process selected grid data (from CSV or Excel)
   const processCurriculumGrid = (grid: any[][]) => {
     if (grid.length === 0) return;
 
@@ -422,11 +425,23 @@ export default function CreateCourse() {
 
     const headers = grid[headerRowIdx].map(x => String(x || "").trim().toLowerCase());
     
-    // 2. Identify column indices
-    let sectionIdx = headers.findIndex(h => h.includes("phase") || h.includes("week") || h.includes("section") || h.includes("module"));
+    // 2. Identify column indices with specific priority order
+    let sectionIdx = -1;
+    const sectionKeywords = ["phase", "section", "module", "chapter", "week", "subject"];
+    for (const kw of sectionKeywords) {
+      sectionIdx = headers.findIndex(h => h.includes(kw));
+      if (sectionIdx !== -1) break;
+    }
+
     let titleIdx = headers.findIndex(h => h.includes("topic") || h.includes("lesson") || h.includes("title") || h.includes("subject") || h.includes("name"));
     let dayIdx = headers.findIndex(h => h.includes("day") || h.includes("number") || h.includes("id") || h.includes("no"));
     let durationIdx = headers.findIndex(h => h.includes("duration") || h.includes("time") || h.includes("length"));
+    
+    // Custom enterprise fields detection
+    let taskIdx = headers.findIndex(h => h.includes("task") || h.includes("exercise") || h.includes("hands-on") || h.includes("practice") || h.includes("activity"));
+    let milestoneIdx = headers.findIndex(h => h.includes("milestone") || h.includes("project") || h.includes("assignment"));
+    let techIdx = headers.findIndex(h => h.includes("stack") || h.includes("tech") || h.includes("tool") || h.includes("technology"));
+    let diffIdx = headers.findIndex(h => h.includes("difficulty") || h.includes("level"));
 
     // Fallbacks if columns are not found
     if (sectionIdx === -1) sectionIdx = 0;
@@ -436,6 +451,9 @@ export default function CreateCourse() {
     const sectionMap: { [key: string]: Section } = {};
     const dataRows = grid.slice(headerRowIdx + 1);
     let sectionSort = 1;
+    
+    // Track previous row's section name to support merged cells / carry forward!
+    let prevSectionName = "";
 
     for (const row of dataRows) {
       if (row.length === 0 || row.every(cell => cell === null || cell === undefined || String(cell).trim() === "")) continue;
@@ -444,10 +462,21 @@ export default function CreateCourse() {
       const rawLessonTitle = String(row[titleIdx] || "").trim();
       const rawDay = dayIdx !== -1 ? String(row[dayIdx] || "").trim() : "";
       const rawDuration = durationIdx !== -1 ? String(row[durationIdx] || "").trim() : "10:00";
+      
+      const rawTask = taskIdx !== -1 ? String(row[taskIdx] || "").trim() : "";
+      const rawMilestone = milestoneIdx !== -1 ? String(row[milestoneIdx] || "").trim() : "";
+      const rawTech = techIdx !== -1 ? String(row[techIdx] || "").trim() : "";
+      const rawDiff = diffIdx !== -1 ? String(row[diffIdx] || "").trim() : "Beginner";
 
       if (!rawSectionName && !rawLessonTitle) continue;
 
-      const sectionName = rawSectionName || "General Introduction";
+      // Carry forward / inherit the previous row's section if empty!
+      let sectionName = rawSectionName;
+      if (!sectionName) {
+        sectionName = prevSectionName || "General Introduction";
+      } else {
+        prevSectionName = sectionName; // update track
+      }
       
       let section = sectionMap[sectionName];
       if (!section) {
@@ -476,6 +505,10 @@ export default function CreateCourse() {
           title: lessonTitle,
           duration: duration,
           sort_order: section.lessons.length + 1,
+          hands_on_task: rawTask,
+          project_milestone: rawMilestone,
+          tech_stack: rawTech,
+          difficulty: rawDiff
         });
       }
     }
@@ -484,6 +517,61 @@ export default function CreateCourse() {
     setIsParsingFile(false);
   };
 
+  const handleUpdateLessonTask = (sectionId: number, lessonId: number, newTask: string) => {
+    setSections(
+      sections.map(s => {
+        if (s.id === sectionId) {
+          return {
+            ...s,
+            lessons: s.lessons.map(l => (l.id === lessonId ? { ...l, hands_on_task: newTask } : l)),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleUpdateLessonMilestone = (sectionId: number, lessonId: number, newMilestone: string) => {
+    setSections(
+      sections.map(s => {
+        if (s.id === sectionId) {
+          return {
+            ...s,
+            lessons: s.lessons.map(l => (l.id === lessonId ? { ...l, project_milestone: newMilestone } : l)),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleUpdateLessonTech = (sectionId: number, lessonId: number, newTech: string) => {
+    setSections(
+      sections.map(s => {
+        if (s.id === sectionId) {
+          return {
+            ...s,
+            lessons: s.lessons.map(l => (l.id === lessonId ? { ...l, tech_stack: newTech } : l)),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleUpdateLessonDifficulty = (sectionId: number, lessonId: number, newDiff: string) => {
+    setSections(
+      sections.map(s => {
+        if (s.id === sectionId) {
+          return {
+            ...s,
+            lessons: s.lessons.map(l => (l.id === lessonId ? { ...l, difficulty: newDiff } : l)),
+          };
+        }
+        return s;
+      })
+    );
+  };
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1097,71 +1185,148 @@ export default function CreateCourse() {
                         {section.isExpanded && (
                           <div className="p-4 space-y-2 bg-black/20">
                             {section.lessons.map((lesson, lIdx) => (
-                              <div
-                                key={lesson.id}
-                                className="bg-surface-variant/10 border border-white/5 p-3 rounded-lg flex items-center justify-between hover:border-primary-container/20 hover:bg-surface-variant/20 transition-all group gap-4"
-                              >
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                  <span className="material-symbols-outlined text-on-surface-variant text-base flex-shrink-0 select-none">
-                                    play_circle
-                                  </span>
-                                  <span className="text-[10px] font-mono text-on-surface-variant bg-white/5 px-1.5 py-0.5 rounded flex-shrink-0 select-none">
-                                    L{lIdx + 1}
-                                  </span>
-                                  <input
-                                    type="text"
-                                    value={lesson.title}
-                                    onChange={(e) => handleUpdateLessonTitle(section.id!, lesson.id!, e.target.value)}
-                                    className="bg-transparent border-none text-white text-xs md:text-sm outline-none focus:border-b focus:border-primary-container w-full cursor-text truncate"
-                                    placeholder="e.g. Lesson Topic / Day Content"
-                                  />
-                                </div>
-
-                                <div className="flex items-center gap-3 flex-shrink-0">
-                                  
-                                  {/* Custom Editable Duration tool */}
-                                  <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded border border-white/5 hover:border-primary-container/30 transition-all">
-                                    <span className="material-symbols-outlined text-[12px] text-on-surface-variant">schedule</span>
+                              <div key={lesson.id} className="space-y-2">
+                                <div
+                                  className="bg-surface-variant/10 border border-white/5 p-3 rounded-lg flex items-center justify-between hover:border-primary-container/20 hover:bg-surface-variant/20 transition-all group gap-4"
+                                >
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <span className="material-symbols-outlined text-on-surface-variant text-base flex-shrink-0 select-none">
+                                      play_circle
+                                    </span>
+                                    <span className="text-[10px] font-mono text-on-surface-variant bg-white/5 px-1.5 py-0.5 rounded flex-shrink-0 select-none">
+                                      L{lIdx + 1}
+                                    </span>
                                     <input
                                       type="text"
-                                      value={lesson.duration}
-                                      onChange={(e) => handleUpdateLessonDuration(section.id!, lesson.id!, e.target.value)}
-                                      className="bg-transparent border-none text-right font-mono text-[10px] text-on-surface-variant hover:text-white w-12 outline-none p-0 focus:ring-0"
-                                      title="Click to edit duration (e.g. 10:00)"
-                                      placeholder="10:00"
+                                      value={lesson.title}
+                                      onChange={(e) => handleUpdateLessonTitle(section.id!, lesson.id!, e.target.value)}
+                                      className="bg-transparent border-none text-white text-xs md:text-sm outline-none focus:border-b focus:border-primary-container w-full cursor-text truncate"
+                                      placeholder="e.g. Lesson Topic / Day Content"
                                     />
                                   </div>
-                                  
-                                  {/* Sort control arrows */}
-                                  <div className="flex items-center">
+
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    
+                                    {/* Expandable Customization Settings button */}
                                     <button
                                       type="button"
-                                      onClick={() => handleMoveLesson(section.id!, lIdx, "up")}
-                                      disabled={lIdx === 0}
-                                      className="p-1 hover:bg-white/10 rounded text-on-surface-variant disabled:opacity-30 transition-all"
-                                      title="Move Lesson Up"
+                                      onClick={() => setExpandedLessonId(expandedLessonId === lesson.id ? null : lesson.id!)}
+                                      className={`p-1 rounded text-on-surface-variant hover:text-primary-container hover:bg-white/5 transition-all ${
+                                        expandedLessonId === lesson.id ? "text-primary-container bg-primary-container/10" : ""
+                                      }`}
+                                      title="Customize Lesson Details"
                                     >
-                                      <span className="material-symbols-outlined text-sm">keyboard_arrow_up</span>
+                                      <span className="material-symbols-outlined text-sm font-bold">tune</span>
                                     </button>
+
+                                    {/* Sort control arrows */}
+                                    <div className="flex items-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveLesson(section.id!, lIdx, "up")}
+                                        disabled={lIdx === 0}
+                                        className="p-1 hover:bg-white/10 rounded text-on-surface-variant disabled:opacity-30 transition-all"
+                                        title="Move Lesson Up"
+                                      >
+                                        <span className="material-symbols-outlined text-sm">keyboard_arrow_up</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveLesson(section.id!, lIdx, "down")}
+                                        disabled={lIdx === section.lessons.length - 1}
+                                        className="p-1 hover:bg-white/10 rounded text-on-surface-variant disabled:opacity-30 transition-all"
+                                        title="Move Lesson Down"
+                                      >
+                                        <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
+                                      </button>
+                                    </div>
+
                                     <button
                                       type="button"
-                                      onClick={() => handleMoveLesson(section.id!, lIdx, "down")}
-                                      disabled={lIdx === section.lessons.length - 1}
-                                      className="p-1 hover:bg-white/10 rounded text-on-surface-variant disabled:opacity-30 transition-all"
-                                      title="Move Lesson Down"
+                                      onClick={() => handleDeleteLesson(section.id!, lesson.id!)}
+                                      className="p-1 hover:bg-red-500/10 rounded text-on-surface-variant hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                                     >
-                                      <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
+                                      <span className="material-symbols-outlined text-sm">delete</span>
                                     </button>
                                   </div>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteLesson(section.id!, lesson.id!)}
-                                    className="p-1 hover:bg-red-500/10 rounded text-on-surface-variant hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                    <span className="material-symbols-outlined text-sm">delete</span>
-                                  </button>
                                 </div>
+
+                                {/* Rich Collapsible Enterprise Customization Panel */}
+                                {expandedLessonId === lesson.id && (
+                                  <div className="bg-black/35 border border-white/5 p-4 rounded-lg space-y-4 animate-fadeIn ml-6 relative overflow-hidden">
+                                    <div className="flex items-center gap-1.5 border-b border-white/10 pb-2 mb-2">
+                                      <span className="material-symbols-outlined text-primary-container text-xs">tune</span>
+                                      <h5 className="text-[11px] font-bold text-white uppercase tracking-wider">Customize Lesson Details</h5>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      {/* Tech Stack Input */}
+                                      <div className="space-y-1">
+                                        <label className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Tech Stack</label>
+                                        <input
+                                          type="text"
+                                          value={lesson.tech_stack || ""}
+                                          onChange={(e) => handleUpdateLessonTech(section.id!, lesson.id!, e.target.value)}
+                                          className="w-full bg-surface-container-lowest/50 border border-outline-variant/20 rounded px-2.5 py-1.5 text-xs text-white outline-none focus:border-primary-container transition-all"
+                                          placeholder="e.g. Python, Docker, PyTorch"
+                                        />
+                                      </div>
+
+                                      {/* Difficulty dropdown */}
+                                      <div className="space-y-1">
+                                        <label className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Difficulty Level</label>
+                                        <select
+                                          value={lesson.difficulty || "Beginner"}
+                                          onChange={(e) => handleUpdateLessonDifficulty(section.id!, lesson.id!, e.target.value)}
+                                          className="w-full bg-surface-container-lowest/50 border border-outline-variant/20 rounded px-2.5 py-1.5 text-xs text-white outline-none focus:border-primary-container transition-all"
+                                        >
+                                          <option value="Beginner">Beginner</option>
+                                          <option value="Intermediate">Intermediate</option>
+                                          <option value="Advanced">Advanced</option>
+                                          <option value="Soft Skill">Soft Skill</option>
+                                        </select>
+                                      </div>
+                                    </div>
+
+                                    {/* Hands-on Task / Exercise */}
+                                    <div className="space-y-1">
+                                      <label className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Hands-on Task / Exercise</label>
+                                      <textarea
+                                        value={lesson.hands_on_task || ""}
+                                        onChange={(e) => handleUpdateLessonTask(section.id!, lesson.id!, e.target.value)}
+                                        rows={2}
+                                        className="w-full bg-surface-container-lowest/50 border border-outline-variant/20 rounded p-2.5 text-xs text-white outline-none focus:border-primary-container resize-none transition-all"
+                                        placeholder="e.g. Build a simple unit converter (km -> miles), practice OOP concepts"
+                                      ></textarea>
+                                    </div>
+
+                                    {/* Project Milestone */}
+                                    <div className="space-y-1">
+                                      <label className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Project Milestone</label>
+                                      <input
+                                        type="text"
+                                        value={lesson.project_milestone || ""}
+                                        onChange={(e) => handleUpdateLessonMilestone(section.id!, lesson.id!, e.target.value)}
+                                        className="w-full bg-surface-container-lowest/50 border border-outline-variant/20 rounded px-2.5 py-1.5 text-xs text-white outline-none focus:border-primary-container transition-all"
+                                        placeholder="e.g. ✅ DELIVER: CLI Contact Book or —"
+                                      />
+                                    </div>
+
+                                    {/* Duration editor box */}
+                                    <div className="flex items-center gap-3 bg-white/5 p-2 rounded border border-white/5 max-w-xs">
+                                      <span className="material-symbols-outlined text-[13px] text-on-surface-variant">schedule</span>
+                                      <span className="text-[10px] text-on-surface-variant font-semibold">Standard Duration:</span>
+                                      <input
+                                        type="text"
+                                        value={lesson.duration}
+                                        onChange={(e) => handleUpdateLessonDuration(section.id!, lesson.id!, e.target.value)}
+                                        className="bg-black/30 border border-white/10 rounded text-center font-mono text-[10px] text-white w-14 outline-none p-1 focus:ring-1 focus:ring-primary-container"
+                                        placeholder="10:00"
+                                      />
+                                    </div>
+                                    
+                                  </div>
+                                )}
                               </div>
                             ))}
 

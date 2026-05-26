@@ -41,6 +41,10 @@ async function initDB() {
         duration VARCHAR(50) DEFAULT '00:00',
         media_url TEXT,
         sort_order INT DEFAULT 0,
+        hands_on_task TEXT,
+        project_milestone VARCHAR(255),
+        tech_stack VARCHAR(255),
+        difficulty VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);

@@ -378,13 +378,17 @@ app.post('/api/courses/:id/bulk-curriculum', async (req, res) => {
           for (let lIdx = 0; lIdx < section.lessons.length; lIdx++) {
             const lesson = section.lessons[lIdx];
             await pool.query(
-              'INSERT INTO lessons (section_id, title, duration, sort_order, media_url) VALUES ($1, $2, $3, $4, $5)',
+              'INSERT INTO lessons (section_id, title, duration, sort_order, media_url, hands_on_task, project_milestone, tech_stack, difficulty) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
               [
                 sectionId,
                 lesson.title || `Lesson ${lIdx + 1}`,
                 lesson.duration || '10:00',
                 lesson.sort_order || (lIdx + 1),
-                lesson.media_url || ''
+                lesson.media_url || '',
+                lesson.hands_on_task || '',
+                lesson.project_milestone || '',
+                lesson.tech_stack || '',
+                lesson.difficulty || 'Beginner'
               ]
             );
           }
