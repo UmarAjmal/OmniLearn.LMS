@@ -83,14 +83,14 @@ export default function CreateCourse() {
       
       if (courseId) {
         // Update existing course
-        response = await fetch(`http://localhost:5000/api/courses/${courseId}`, {
+        response = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${courseId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       } else {
         // Create new course
-        response = await fetch("http://localhost:5000/api/courses", {
+        response = await fetch("https://omnilearn-lms.onrender.com/api/courses", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -132,7 +132,7 @@ export default function CreateCourse() {
   // ========================================================
   const fetchCurriculum = async (id: number) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/courses/${id}`);
+      const res = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${id}`);
       const json = await res.json();
       if (json.success) {
         const loadedSections = json.data.sections.map((s: any) => ({
@@ -155,7 +155,7 @@ export default function CreateCourse() {
   const handleAddSection = async () => {
     if (!courseId) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/courses/${courseId}/sections`, {
+      const res = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${courseId}/sections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -179,7 +179,7 @@ export default function CreateCourse() {
 
   const handleUpdateSectionTitle = async (sectionId: number, newTitle: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/sections/${sectionId}`, {
+      const res = await fetch(`https://omnilearn-lms.onrender.com/api/sections/${sectionId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: newTitle }),
@@ -197,7 +197,7 @@ export default function CreateCourse() {
 
   const handleDeleteSection = async (sectionId: number) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/sections/${sectionId}`, {
+      const res = await fetch(`https://omnilearn-lms.onrender.com/api/sections/${sectionId}`, {
         method: "DELETE",
       });
       const json = await res.json();
@@ -214,7 +214,7 @@ export default function CreateCourse() {
     const section = sections.find(s => s.id === sectionId);
     if (!section) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/sections/${sectionId}/lessons`, {
+      const res = await fetch(`https://omnilearn-lms.onrender.com/api/sections/${sectionId}/lessons`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -242,7 +242,7 @@ export default function CreateCourse() {
 
   const handleUpdateLessonTitle = async (sectionId: number, lessonId: number, newTitle: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/lessons/${lessonId}`, {
+      const res = await fetch(`https://omnilearn-lms.onrender.com/api/lessons/${lessonId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: newTitle }),
@@ -268,7 +268,7 @@ export default function CreateCourse() {
 
   const handleDeleteLesson = async (sectionId: number, lessonId: number) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/lessons/${lessonId}`, {
+      const res = await fetch(`https://omnilearn-lms.onrender.com/api/lessons/${lessonId}`, {
         method: "DELETE",
       });
       const json = await res.json();
@@ -307,7 +307,7 @@ export default function CreateCourse() {
     try {
       await Promise.all(
         newLessons.map((l, index) =>
-          fetch(`http://localhost:5000/api/lessons/${l.id}`, {
+          fetch(`https://omnilearn-lms.onrender.com/api/lessons/${l.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ sort_order: index + 1 }),
@@ -331,7 +331,7 @@ export default function CreateCourse() {
     }
     setIsImporting(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/courses/${courseId}/import-curriculum`, {
+      const res = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${courseId}/import-curriculum`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ textData: csvText }),
@@ -371,7 +371,7 @@ export default function CreateCourse() {
             const chosenDuration = mockDurations[Math.floor(Math.random() * mockDurations.length)];
             const mockUrl = "https://player.vimeo.com/video/76979871";
 
-            fetch(`http://localhost:5000/api/lessons/${lessonId}`, {
+            fetch(`https://omnilearn-lms.onrender.com/api/lessons/${lessonId}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -403,7 +403,7 @@ export default function CreateCourse() {
     if (!courseId) return;
     setIsPublishing(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/courses/${courseId}/publish`, {
+      const res = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${courseId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ price: parseFloat(price) }),
