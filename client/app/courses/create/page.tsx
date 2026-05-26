@@ -41,6 +41,12 @@ export default function CreateCourse() {
   const [csvText, setCsvText] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
 
+  // New States for File Import & zero-latency manual customizations
+  const [showFileImportModal, setShowFileImportModal] = useState(false);
+  const [isParsingFile, setIsParsingFile] = useState(false);
+  const [importedSectionsPreview, setImportedSectionsPreview] = useState<Section[]>([]);
+  const [selectedSheetName, setSelectedSheetName] = useState("");
+
   // Step 3: Media Upload Simulator States
   const [selectedLessonId, setSelectedLessonId] = useState<number | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -135,9 +141,10 @@ export default function CreateCourse() {
       const res = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${id}`);
       const json = await res.json();
       if (json.success) {
-        const loadedSections = json.data.sections.map((s: any) => ({
+        const loadedSections = (json.data.sections || []).map((s: any) => ({
           ...s,
           isExpanded: true,
+          lessons: s.lessons || [],
         }));
         setSections(loadedSections);
       }
@@ -152,204 +159,415 @@ export default function CreateCourse() {
     }
   }, [courseId, currentStep]);
 
-  const handleAddSection = async () => {
-    if (!courseId) return;
-    try {
-      const res = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${courseId}/sections`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: `Section ${sections.length + 1}: New Section`,
-          sort_order: sections.length + 1,
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        const newSection: Section = {
-          ...json.data,
-          isExpanded: true,
-        };
-        setSections([...sections, newSection]);
-        toast.success("Section added!");
-      }
-    } catch (err) {
-      toast.error("Failed to add section.");
-    }
-  };
-
-  const handleUpdateSectionTitle = async (sectionId: number, newTitle: string) => {
-    try {
-      const res = await fetch(`https://omnilearn-lms.onrender.com/api/sections/${sectionId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setSections(
-          sections.map(s => (s.id === sectionId ? { ...s, title: newTitle } : s))
-        );
-      }
-    } catch (err) {
-      toast.error("Failed to update section.");
-    }
-  };
-
-  const handleDeleteSection = async (sectionId: number) => {
-    try {
-      const res = await fetch(`https://omnilearn-lms.onrender.com/api/sections/${sectionId}`, {
-        method: "DELETE",
-      });
-      const json = await res.json();
-      if (json.success) {
-        setSections(sections.filter(s => s.id !== sectionId));
-        toast.success("Section deleted.");
-      }
-    } catch (err) {
-      toast.error("Failed to delete section.");
-    }
-  };
-
-  const handleAddLesson = async (sectionId: number) => {
-    const section = sections.find(s => s.id === sectionId);
-    if (!section) return;
-    try {
-      const res = await fetch(`https://omnilearn-lms.onrender.com/api/sections/${sectionId}/lessons`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: `Lesson ${section.lessons.length + 1}: Untitled Lesson`,
-          duration: "10:00",
-          sort_order: section.lessons.length + 1,
-        }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setSections(
-          sections.map(s => {
-            if (s.id === sectionId) {
-              return { ...s, lessons: [...s.lessons, json.data] };
-            }
-            return s;
-          })
-        );
-        toast.success("Lesson added!");
-      }
-    } catch (err) {
-      toast.error("Failed to add lesson.");
-    }
-  };
-
-  const handleUpdateLessonTitle = async (sectionId: number, lessonId: number, newTitle: string) => {
-    try {
-      const res = await fetch(`https://omnilearn-lms.onrender.com/api/lessons/${lessonId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        setSections(
-          sections.map(s => {
-            if (s.id === sectionId) {
-              return {
-                ...s,
-                lessons: s.lessons.map(l => (l.id === lessonId ? { ...l, title: newTitle } : l)),
-              };
-            }
-            return s;
-          })
-        );
-      }
-    } catch (err) {
-      toast.error("Failed to update lesson.");
-    }
-  };
-
-  const handleDeleteLesson = async (sectionId: number, lessonId: number) => {
-    try {
-      const res = await fetch(`https://omnilearn-lms.onrender.com/api/lessons/${lessonId}`, {
-        method: "DELETE",
-      });
-      const json = await res.json();
-      if (json.success) {
-        setSections(
-          sections.map(s => {
-            if (s.id === sectionId) {
-              return { ...s, lessons: s.lessons.filter(l => l.id !== lessonId) };
-            }
-            return s;
-          })
-        );
-        toast.success("Lesson deleted.");
-      }
-    } catch (err) {
-      toast.error("Failed to delete lesson.");
-    }
-  };
-
-  // Reordering Lessons
-  const handleMoveLesson = async (sectionId: number, lessonIndex: number, direction: "up" | "down") => {
-    const section = sections.find(s => s.id === sectionId);
-    if (!section) return;
-    
-    const newLessons = [...section.lessons];
-    const swapWithIndex = direction === "up" ? lessonIndex - 1 : lessonIndex + 1;
-    
-    if (swapWithIndex < 0 || swapWithIndex >= newLessons.length) return;
-    
-    // Swap inside local state
-    const temp = newLessons[lessonIndex];
-    newLessons[lessonIndex] = newLessons[swapWithIndex];
-    newLessons[swapWithIndex] = temp;
-
-    // Persist sort orders
-    try {
-      await Promise.all(
-        newLessons.map((l, index) =>
-          fetch(`https://omnilearn-lms.onrender.com/api/lessons/${l.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sort_order: index + 1 }),
-          })
-        )
-      );
-      
-      setSections(
-        sections.map(s => (s.id === sectionId ? { ...s, lessons: newLessons } : s))
-      );
-    } catch (err) {
-      toast.error("Failed to reorder lessons.");
-    }
-  };
-
-  // CSV Curriculum Importer
-  const handleCsvImport = async () => {
-    if (!courseId || !csvText.trim()) {
-      toast.error("Please enter curriculum data.");
-      return;
+  const handleSaveCurriculum = async (showToast = true) => {
+    if (!courseId) {
+      toast.error("Please save course details first.");
+      return false;
     }
     setIsImporting(true);
     try {
-      const res = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${courseId}/import-curriculum`, {
+      const response = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${courseId}/bulk-curriculum`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ textData: csvText }),
+        body: JSON.stringify({ sections }),
       });
-      const json = await res.json();
+      const json = await response.json();
       if (json.success) {
-        toast.success("Curriculum imported successfully!");
-        setShowImportModal(false);
-        setCsvText("");
-        fetchCurriculum(courseId);
+        if (showToast) toast.success("Curriculum synced with server successfully!");
+        return true;
       } else {
-        toast.error(json.error || "Import failed.");
+        toast.error(json.error || "Failed to save curriculum.");
+        return false;
       }
     } catch (err) {
-      toast.error("Connection failed.");
+      console.error(err);
+      toast.error("Server connection failed when saving curriculum.");
+      return false;
     } finally {
       setIsImporting(false);
     }
+  };
+
+  // Purely Local Snappy Operations (0ms latency!)
+  const handleAddSection = () => {
+    const newSection: Section = {
+      id: -Date.now(), // negative temporary ID
+      title: `Section ${sections.length + 1}: New Section`,
+      sort_order: sections.length + 1,
+      lessons: [],
+      isExpanded: true,
+    };
+    setSections([...sections, newSection]);
+    toast.success("Section added!");
+  };
+
+  const handleUpdateSectionTitle = (sectionId: number, newTitle: string) => {
+    setSections(
+      sections.map(s => (s.id === sectionId ? { ...s, title: newTitle } : s))
+    );
+  };
+
+  const handleDeleteSection = (sectionId: number) => {
+    setSections(sections.filter(s => s.id !== sectionId));
+    toast.success("Section removed.");
+  };
+
+  const handleMoveSection = (index: number, direction: "up" | "down") => {
+    const newSections = [...sections];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= newSections.length) return;
+
+    const temp = newSections[index];
+    newSections[index] = newSections[swapIndex];
+    newSections[swapIndex] = temp;
+
+    setSections(
+      newSections.map((s, idx) => ({
+        ...s,
+        sort_order: idx + 1,
+      }))
+    );
+  };
+
+  const handleAddLesson = (sectionId: number) => {
+    setSections(
+      sections.map(s => {
+        if (s.id === sectionId) {
+          const newLesson: Lesson = {
+            id: -Date.now() - Math.random(), // unique negative temporary ID
+            title: `Lesson ${s.lessons.length + 1}: Untitled Lesson`,
+            duration: "10:00",
+            sort_order: s.lessons.length + 1,
+          };
+          return { ...s, lessons: [...s.lessons, newLesson] };
+        }
+        return s;
+      })
+    );
+    toast.success("Lesson added!");
+  };
+
+  const handleUpdateLessonTitle = (sectionId: number, lessonId: number, newTitle: string) => {
+    setSections(
+      sections.map(s => {
+        if (s.id === sectionId) {
+          return {
+            ...s,
+            lessons: s.lessons.map(l => (l.id === lessonId ? { ...l, title: newTitle } : l)),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleUpdateLessonDuration = (sectionId: number, lessonId: number, newDuration: string) => {
+    setSections(
+      sections.map(s => {
+        if (s.id === sectionId) {
+          return {
+            ...s,
+            lessons: s.lessons.map(l => (l.id === lessonId ? { ...l, duration: newDuration } : l)),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleDeleteLesson = (sectionId: number, lessonId: number) => {
+    setSections(
+      sections.map(s => {
+        if (s.id === sectionId) {
+          return { ...s, lessons: s.lessons.filter(l => l.id !== lessonId) };
+        }
+        return s;
+      })
+    );
+    toast.success("Lesson removed.");
+  };
+
+  const handleMoveLesson = (sectionId: number, lessonIndex: number, direction: "up" | "down") => {
+    setSections(
+      sections.map(s => {
+        if (s.id === sectionId) {
+          const newLessons = [...s.lessons];
+          const swapWithIndex = direction === "up" ? lessonIndex - 1 : lessonIndex + 1;
+          if (swapWithIndex < 0 || swapWithIndex >= newLessons.length) return s;
+
+          const temp = newLessons[lessonIndex];
+          newLessons[lessonIndex] = newLessons[swapWithIndex];
+          newLessons[swapWithIndex] = temp;
+
+          return {
+            ...s,
+            lessons: newLessons.map((l, idx) => ({ ...l, sort_order: idx + 1 })),
+          };
+        }
+        return s;
+      })
+    );
+  };
+
+  const handleClearAllCurriculum = () => {
+    if (confirm("Are you sure you want to clear the entire curriculum?")) {
+      setSections([]);
+      toast.success("Curriculum cleared!");
+    }
+  };
+
+  const handleNextStep2 = async () => {
+    const success = await handleSaveCurriculum(false);
+    if (success) {
+      if (courseId) {
+        await fetchCurriculum(courseId); // refresh to get database IDs for Step 3
+      }
+      setCurrentStep(3);
+    }
+  };
+
+  // CSV Curriculum Importer (Text paste fallback)
+  const handleCsvImport = () => {
+    if (!csvText.trim()) {
+      toast.error("Please enter CSV text data.");
+      return;
+    }
+
+    try {
+      const grid = parseCsvLines(csvText);
+      processCurriculumGrid(grid);
+      setShowImportModal(false);
+      setCsvText("");
+      toast.success("CSV text parsed into preview! review below, then click save.");
+      setShowFileImportModal(true);
+    } catch (e) {
+      toast.error("Failed to parse CSV text.");
+    }
+  };
+
+  // Dynamically load SheetJS
+  const loadSheetJS = () => {
+    return new Promise<any>((resolve, reject) => {
+      if ((window as any).XLSX) {
+        resolve((window as any).XLSX);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+      script.onload = () => {
+        resolve((window as any).XLSX);
+      };
+      script.onerror = (err) => {
+        reject(err);
+      };
+      document.head.appendChild(script);
+    });
+  };
+
+  // CSV parsing routine
+  const parseCsvLines = (text: string): any[][] => {
+    const lines: any[][] = [];
+    let row: any[] = [];
+    let inQuotes = false;
+    let entry = "";
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const nextChar = text[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          entry += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === "," && !inQuotes) {
+        row.push(entry.trim());
+        entry = "";
+      } else if ((char === "\r" || char === "\n") && !inQuotes) {
+        if (char === "\r" && nextChar === "\n") {
+          i++;
+        }
+        row.push(entry.trim());
+        if (row.some(x => x !== "")) {
+          lines.push(row);
+        }
+        row = [];
+        entry = "";
+      } else {
+        entry += char;
+      }
+    }
+    if (entry || row.length > 0) {
+      row.push(entry.trim());
+      lines.push(row);
+    }
+    return lines;
+  };
+
+  // Process selected grid data (from CSV or Excel)
+  const processCurriculumGrid = (grid: any[][]) => {
+    if (grid.length === 0) return;
+
+    // 1. Find header row (search first 10 rows for fields like phase, week, topic, lesson)
+    let headerRowIdx = 0;
+    for (let i = 0; i < Math.min(grid.length, 10); i++) {
+      const row = grid[i].map(x => String(x || "").toLowerCase());
+      if (row.some(c => c.includes("day") || c.includes("week") || c.includes("phase") || c.includes("topic") || c.includes("lesson"))) {
+        headerRowIdx = i;
+        break;
+      }
+    }
+
+    const headers = grid[headerRowIdx].map(x => String(x || "").trim().toLowerCase());
+    
+    // 2. Identify column indices
+    let sectionIdx = headers.findIndex(h => h.includes("phase") || h.includes("week") || h.includes("section") || h.includes("module"));
+    let titleIdx = headers.findIndex(h => h.includes("topic") || h.includes("lesson") || h.includes("title") || h.includes("subject") || h.includes("name"));
+    let dayIdx = headers.findIndex(h => h.includes("day") || h.includes("number") || h.includes("id") || h.includes("no"));
+    let durationIdx = headers.findIndex(h => h.includes("duration") || h.includes("time") || h.includes("length"));
+
+    // Fallbacks if columns are not found
+    if (sectionIdx === -1) sectionIdx = 0;
+    if (titleIdx === -1) titleIdx = grid[headerRowIdx].length > 1 ? 1 : 0;
+
+    const parsedSections: Section[] = [];
+    const sectionMap: { [key: string]: Section } = {};
+    const dataRows = grid.slice(headerRowIdx + 1);
+    let sectionSort = 1;
+
+    for (const row of dataRows) {
+      if (row.length === 0 || row.every(cell => cell === null || cell === undefined || String(cell).trim() === "")) continue;
+
+      const rawSectionName = String(row[sectionIdx] || "").trim();
+      const rawLessonTitle = String(row[titleIdx] || "").trim();
+      const rawDay = dayIdx !== -1 ? String(row[dayIdx] || "").trim() : "";
+      const rawDuration = durationIdx !== -1 ? String(row[durationIdx] || "").trim() : "10:00";
+
+      if (!rawSectionName && !rawLessonTitle) continue;
+
+      const sectionName = rawSectionName || "General Introduction";
+      
+      let section = sectionMap[sectionName];
+      if (!section) {
+        section = {
+          id: -Date.now() - Math.random(),
+          title: sectionName,
+          sort_order: sectionSort++,
+          lessons: [],
+          isExpanded: true,
+        };
+        sectionMap[sectionName] = section;
+        parsedSections.push(section);
+      }
+
+      if (rawLessonTitle) {
+        const prefix = rawDay ? `Day ${rawDay}: ` : "";
+        const lessonTitle = `${prefix}${rawLessonTitle}`;
+        
+        let duration = rawDuration;
+        if (!duration || duration === "—" || duration === "undefined" || duration === "") {
+          duration = "10:00";
+        }
+        
+        section.lessons.push({
+          id: -Date.now() - Math.random(),
+          title: lessonTitle,
+          duration: duration,
+          sort_order: section.lessons.length + 1,
+        });
+      }
+    }
+
+    setImportedSectionsPreview(parsedSections);
+    setIsParsingFile(false);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsParsingFile(true);
+    try {
+      const reader = new FileReader();
+      const fileName = file.name.toLowerCase();
+
+      if (fileName.endsWith(".csv")) {
+        reader.onload = async (evt) => {
+          const text = evt.target?.result as string;
+          parseCsvContent(text);
+        };
+        reader.readAsText(file);
+      } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+        const XLSX = await loadSheetJS();
+        reader.onload = async (evt) => {
+          const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          setSelectedSheetName(firstSheetName);
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+          parseExcelContent(jsonData);
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        toast.error("Unsupported file format. Please upload a .csv or .xlsx file.");
+        setIsParsingFile(false);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error reading file.");
+      setIsParsingFile(false);
+    }
+  };
+
+  const parseCsvContent = (text: string) => {
+    const grid = parseCsvLines(text);
+    processCurriculumGrid(grid);
+  };
+
+  const parseExcelContent = (grid: any[][]) => {
+    processCurriculumGrid(grid);
+  };
+
+  const handleApplyImportedCurriculum = () => {
+    if (importedSectionsPreview.length === 0) {
+      toast.error("No sections to import.");
+      return;
+    }
+    setSections(importedSectionsPreview);
+    setShowFileImportModal(false);
+    setImportedSectionsPreview([]);
+    toast.success("Imported curriculum loaded! Click 'Sync Curriculum' or save to persist to server.");
+  };
+
+  const handlePrepopulateTemplate = () => {
+    const template: Section[] = [
+      {
+        id: -1,
+        title: "PHASE 1 — Python Foundations",
+        sort_order: 1,
+        isExpanded: true,
+        lessons: [
+          { id: -1.1, title: "Day 1: Environment Setup: VS Code, Python install, venv, pip, folder structure", duration: "10:00", sort_order: 1 },
+          { id: -1.2, title: "Day 2: Variables, Data Types, Type Casting, Comments", duration: "10:00", sort_order: 2 },
+          { id: -1.3, title: "Day 3: Strings: indexing, slicing, methods, f-strings", duration: "10:00", sort_order: 3 }
+        ]
+      },
+      {
+        id: -2,
+        title: "PHASE 2 — Dev Tools & Version Control",
+        sort_order: 2,
+        isExpanded: true,
+        lessons: [
+          { id: -2.1, title: "Day 11: Git basics: init, add, commit, status, log, diff, .gitignore", duration: "12:00", sort_order: 1 },
+          { id: -2.2, title: "Day 12: Git branching: branch, checkout, merge, conflicts resolution", duration: "15:00", sort_order: 2 }
+        ]
+      }
+    ];
+    setSections(template);
+    toast.success("Loaded AI Engineer roadmap template!");
   };
 
   // ========================================================
@@ -701,68 +919,154 @@ export default function CreateCourse() {
           {currentStep === 2 && (
             <div className="p-8 md:p-10 space-y-8 animate-fadeIn">
               
-              {/* AI Curriculum Import Card */}
-              <div
-                onClick={() => setShowImportModal(true)}
-                className="border-2 border-dashed border-outline-variant/40 rounded-xl p-8 flex flex-col items-center justify-center text-center bg-primary-container/5 hover:bg-primary-container/10 transition-all cursor-pointer group border-spacing-2"
-              >
-                <div className="w-16 h-16 rounded-2xl bg-primary-container/10 flex items-center justify-center text-primary-container mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <span className="material-symbols-outlined text-[36px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    auto_awesome
-                  </span>
+              {/* Premium Import / Action Toolbar */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* AI / Spreadsheet Importer Card */}
+                <div
+                  onClick={() => setShowFileImportModal(true)}
+                  className="border-2 border-dashed border-primary-container/30 hover:border-primary-container rounded-xl p-6 flex items-center gap-4 bg-primary-container/5 hover:bg-primary-container/10 transition-all cursor-pointer group"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-primary-container/10 flex items-center justify-center text-primary-container group-hover:scale-110 transition-transform duration-300">
+                    <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      upload_file
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-bold text-white mb-0.5 flex items-center gap-1.5">
+                      Import Excel / CSV
+                      <span className="text-[10px] bg-primary-container/20 text-primary-container px-2 py-0.5 rounded-full font-bold uppercase">Popular</span>
+                    </h3>
+                    <p className="text-[11px] text-on-surface-variant leading-relaxed max-w-sm">
+                      Upload `.xlsx` or `.csv` outlines (like `AI roadmap.xlsx`). Our system auto-groups sections & lessons instantly!
+                    </p>
+                  </div>
                 </div>
-                <h3 className="text-xl font-headline-lg font-bold text-white mb-2">AI Curriculum Import</h3>
-                <p className="font-body-md text-sm text-on-surface-variant max-w-md">
-                  Click here to paste or drop standard CSV outlines to auto-generate courses. Our engine intelligently maps sections and lessons in seconds.
-                </p>
+
+                {/* AI Quick Templates Card */}
+                <div
+                  onClick={handlePrepopulateTemplate}
+                  className="border-2 border-dashed border-emerald-500/20 hover:border-emerald-500/50 rounded-xl p-6 flex items-center gap-4 bg-emerald-500/5 hover:bg-emerald-500/10 transition-all cursor-pointer group"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform duration-300">
+                    <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                      auto_awesome
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-sm font-bold text-white mb-0.5">Pre-populate Roadmap Template</h3>
+                    <p className="text-[11px] text-on-surface-variant leading-relaxed max-w-sm">
+                      Don't want to type? Click here to instantly load a gorgeous 12-week AI Engineer training roadmap template.
+                    </p>
+                  </div>
+                </div>
+
               </div>
 
               {/* Manual Builder Section */}
               <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-headline-lg text-xl font-bold text-primary-container">
-                    Curriculum Builder
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={handleAddSection}
-                    className="flex items-center gap-1.5 text-xs text-primary-container border border-primary-container/30 px-4 py-2 rounded-full hover:bg-primary-container/10 transition-colors font-bold cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-sm">add</span>
-                    Add Section
-                  </button>
+                
+                {/* Builder Header & Local Controls */}
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white/5 p-4 rounded-xl border border-white/5">
+                  <div>
+                    <h3 className="font-headline-lg text-lg font-bold text-primary-container flex items-center gap-2">
+                      <span className="material-symbols-outlined text-sm">edit_note</span>
+                      Interactive Curriculum Builder
+                    </h3>
+                    <p className="text-[11px] text-on-surface-variant mt-0.5">
+                      Customize sections, reorder topics, and set lesson durations with zero latency.
+                    </p>
+                  </div>
+                  
+                  {/* Toolkit buttons */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddSection}
+                      className="flex items-center gap-1 text-[11px] text-primary-container border border-primary-container/30 px-3.5 py-1.5 rounded-full hover:bg-primary-container/10 transition-all font-bold cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-xs">add</span>
+                      Add Section
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveCurriculum(true)}
+                      disabled={isImporting}
+                      className="flex items-center gap-1 text-[11px] text-white bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-full hover:bg-white/10 transition-all font-bold cursor-pointer disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-xs">sync</span>
+                      {isImporting ? "Saving..." : "Sync Curriculum"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearAllCurriculum}
+                      className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 border border-red-500/20 px-3.5 py-1.5 rounded-full hover:bg-red-500/10 transition-all font-bold cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-xs">delete_sweep</span>
+                      Clear All
+                    </button>
+                  </div>
                 </div>
 
                 {sections.length === 0 ? (
-                  <div className="border border-outline-variant/20 rounded-xl p-12 text-center text-on-surface-variant bg-surface-container-low/20">
-                    <span className="material-symbols-outlined text-4xl mb-3 block text-outline">
+                  <div className="border border-outline-variant/10 rounded-xl p-16 text-center text-on-surface-variant bg-surface-container-low/20">
+                    <span className="material-symbols-outlined text-5xl mb-3 block text-primary-container animate-pulse">
                       playlist_add
                     </span>
-                    <p className="font-semibold text-sm">No sections created yet.</p>
-                    <p className="text-xs text-on-surface-variant mt-1">Click "Add Section" or utilize the "AI Curriculum Import" above.</p>
+                    <p className="font-semibold text-white text-sm">Your Curriculum is Empty</p>
+                    <p className="text-xs text-on-surface-variant mt-1.5 max-w-sm mx-auto">
+                      Get started by importing an Excel/CSV file, pre-populating our industry standard template, or adding custom sections manually.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {sections.map((section, sIdx) => (
                       <div
                         key={section.id}
-                        className="glass-panel rounded-lg overflow-hidden border border-white/5 bg-white/5"
+                        className="glass-panel rounded-lg overflow-hidden border border-white/5 bg-white/5 transition-shadow hover:shadow-[0_4px_20px_rgba(0,0,0,0.2)]"
                       >
                         {/* Section Header */}
-                        <div className="p-4 flex items-center justify-between bg-white/5 hover:bg-white/10 transition-all border-b border-white/5">
-                          <div className="flex items-center gap-3 flex-1">
-                            <span className="material-symbols-outlined text-on-surface-variant cursor-grab">
+                        <div className="p-4 flex items-center justify-between bg-white/5 hover:bg-white/10 transition-all border-b border-white/5 gap-4">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <span className="material-symbols-outlined text-on-surface-variant cursor-grab select-none">
                               drag_indicator
+                            </span>
+                            <span className="text-xs font-mono font-bold text-primary-container px-2 py-0.5 bg-primary-container/10 rounded">
+                              S{sIdx + 1}
                             </span>
                             <input
                               type="text"
                               value={section.title}
                               onChange={(e) => handleUpdateSectionTitle(section.id!, e.target.value)}
-                              className="bg-transparent border-none text-white text-base font-bold outline-none focus:border-b focus:border-primary-container pb-0.5 w-full md:w-96 cursor-text"
+                              className="bg-transparent border-none text-white text-sm md:text-base font-bold outline-none focus:border-b focus:border-primary-container pb-0.5 w-full cursor-text truncate"
+                              placeholder="e.g. Section Title"
                             />
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            
+                            {/* Reorder Section */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveSection(sIdx, "up")}
+                              disabled={sIdx === 0}
+                              className="p-1 hover:bg-white/10 rounded text-on-surface-variant disabled:opacity-30 transition-all"
+                              title="Move Section Up"
+                            >
+                              <span className="material-symbols-outlined text-sm font-bold">arrow_upward</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveSection(sIdx, "down")}
+                              disabled={sIdx === sections.length - 1}
+                              className="p-1 hover:bg-white/10 rounded text-on-surface-variant disabled:opacity-30 transition-all"
+                              title="Move Section Down"
+                            >
+                              <span className="material-symbols-outlined text-sm font-bold">arrow_downward</span>
+                            </button>
+
+                            <div className="w-px h-5 bg-white/10 mx-1"></div>
+
                             <button
                               type="button"
                               onClick={() => {
@@ -778,6 +1082,7 @@ export default function CreateCourse() {
                                 {section.isExpanded ? "expand_less" : "expand_more"}
                               </span>
                             </button>
+                            
                             <button
                               type="button"
                               onClick={() => handleDeleteSection(section.id!)}
@@ -790,28 +1095,42 @@ export default function CreateCourse() {
 
                         {/* Section Lessons */}
                         {section.isExpanded && (
-                          <div className="p-4 space-y-3 bg-black/10">
+                          <div className="p-4 space-y-2 bg-black/20">
                             {section.lessons.map((lesson, lIdx) => (
                               <div
                                 key={lesson.id}
-                                className="bg-surface-variant/20 border border-white/5 p-3 rounded-lg flex items-center justify-between hover:border-primary-container/20 transition-all group"
+                                className="bg-surface-variant/10 border border-white/5 p-3 rounded-lg flex items-center justify-between hover:border-primary-container/20 hover:bg-surface-variant/20 transition-all group gap-4"
                               >
-                                <div className="flex items-center gap-3 flex-1">
-                                  <span className="material-symbols-outlined text-on-surface-variant text-base">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <span className="material-symbols-outlined text-on-surface-variant text-base flex-shrink-0 select-none">
                                     play_circle
+                                  </span>
+                                  <span className="text-[10px] font-mono text-on-surface-variant bg-white/5 px-1.5 py-0.5 rounded flex-shrink-0 select-none">
+                                    L{lIdx + 1}
                                   </span>
                                   <input
                                     type="text"
                                     value={lesson.title}
                                     onChange={(e) => handleUpdateLessonTitle(section.id!, lesson.id!, e.target.value)}
-                                    className="bg-transparent border-none text-white text-sm outline-none focus:border-b focus:border-primary-container w-full max-w-sm cursor-text"
+                                    className="bg-transparent border-none text-white text-xs md:text-sm outline-none focus:border-b focus:border-primary-container w-full cursor-text truncate"
+                                    placeholder="e.g. Lesson Topic / Day Content"
                                   />
                                 </div>
 
-                                <div className="flex items-center gap-3">
-                                  <span className="text-xs text-on-surface-variant font-mono">
-                                    {lesson.duration}
-                                  </span>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                  
+                                  {/* Custom Editable Duration tool */}
+                                  <div className="flex items-center gap-1.5 bg-black/30 px-2 py-1 rounded border border-white/5 hover:border-primary-container/30 transition-all">
+                                    <span className="material-symbols-outlined text-[12px] text-on-surface-variant">schedule</span>
+                                    <input
+                                      type="text"
+                                      value={lesson.duration}
+                                      onChange={(e) => handleUpdateLessonDuration(section.id!, lesson.id!, e.target.value)}
+                                      className="bg-transparent border-none text-right font-mono text-[10px] text-on-surface-variant hover:text-white w-12 outline-none p-0 focus:ring-0"
+                                      title="Click to edit duration (e.g. 10:00)"
+                                      placeholder="10:00"
+                                    />
+                                  </div>
                                   
                                   {/* Sort control arrows */}
                                   <div className="flex items-center">
@@ -819,17 +1138,19 @@ export default function CreateCourse() {
                                       type="button"
                                       onClick={() => handleMoveLesson(section.id!, lIdx, "up")}
                                       disabled={lIdx === 0}
-                                      className="p-1 hover:bg-white/10 rounded text-on-surface-variant disabled:opacity-30"
+                                      className="p-1 hover:bg-white/10 rounded text-on-surface-variant disabled:opacity-30 transition-all"
+                                      title="Move Lesson Up"
                                     >
-                                      <span className="material-symbols-outlined text-base">keyboard_arrow_up</span>
+                                      <span className="material-symbols-outlined text-sm">keyboard_arrow_up</span>
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => handleMoveLesson(section.id!, lIdx, "down")}
                                       disabled={lIdx === section.lessons.length - 1}
-                                      className="p-1 hover:bg-white/10 rounded text-on-surface-variant disabled:opacity-30"
+                                      className="p-1 hover:bg-white/10 rounded text-on-surface-variant disabled:opacity-30 transition-all"
+                                      title="Move Lesson Down"
                                     >
-                                      <span className="material-symbols-outlined text-base">keyboard_arrow_down</span>
+                                      <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
                                     </button>
                                   </div>
 
@@ -838,7 +1159,7 @@ export default function CreateCourse() {
                                     onClick={() => handleDeleteLesson(section.id!, lesson.id!)}
                                     className="p-1 hover:bg-red-500/10 rounded text-on-surface-variant hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                                   >
-                                    <span className="material-symbols-outlined text-base">delete</span>
+                                    <span className="material-symbols-outlined text-sm">delete</span>
                                   </button>
                                 </div>
                               </div>
@@ -847,7 +1168,7 @@ export default function CreateCourse() {
                             <button
                               type="button"
                               onClick={() => handleAddLesson(section.id!)}
-                              className="ml-2 mt-2 flex items-center gap-1 text-xs text-cream-accent hover:text-primary-container transition-colors font-semibold cursor-pointer"
+                              className="ml-1.5 mt-2 flex items-center gap-1 text-[11px] text-primary-container hover:text-cream-accent hover:translate-x-1 transition-all font-semibold cursor-pointer"
                             >
                               <span className="material-symbols-outlined text-sm">add_circle</span>
                               Add Lesson
@@ -865,16 +1186,17 @@ export default function CreateCourse() {
                 <button
                   type="button"
                   onClick={() => setCurrentStep(1)}
-                  className="px-6 py-3 rounded-lg border border-outline-variant/30 text-on-surface font-label-md hover:bg-surface-variant/20 transition-all active:scale-95 cursor-pointer text-sm"
+                  className="px-6 py-3 rounded-lg border border-outline-variant/30 text-on-surface font-label-md hover:bg-surface-variant/20 transition-all active:scale-95 cursor-pointer text-sm font-semibold"
                 >
                   Back
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCurrentStep(3)}
-                  className="px-8 py-3 rounded-lg bg-primary-container text-on-primary-container font-label-md font-bold shadow-lg shadow-primary-container/20 hover:shadow-primary-container/40 hover:translate-y-[-2px] transition-all active:scale-95 cursor-pointer text-sm"
+                  onClick={handleNextStep2}
+                  className="px-8 py-3 rounded-lg bg-primary-container text-on-primary-container font-label-md font-bold shadow-lg shadow-primary-container/20 hover:shadow-primary-container/40 hover:translate-y-[-2px] transition-all active:scale-95 cursor-pointer text-sm flex items-center gap-1"
                 >
                   Next Step: Media
+                  <span className="material-symbols-outlined text-sm font-bold">arrow_forward</span>
                 </button>
               </div>
 
@@ -1164,14 +1486,14 @@ export default function CreateCourse() {
         </div>
       </div>
 
-      {/* AI Importer Dropdown Modal */}
+      {/* Paste CSV Text Importer Modal */}
       {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
           <div className="glass-panel inner-glow-border rounded-xl p-6 max-w-lg w-full bg-surface-container border border-white/10 space-y-4 animate-scaleUp">
             <div className="flex justify-between items-center border-b border-white/10 pb-3">
               <h4 className="text-base font-bold text-white flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-primary-container">auto_awesome</span>
-                AI Curriculum CSV Importer
+                <span className="material-symbols-outlined text-primary-container font-bold">article</span>
+                Paste Raw CSV Text Importer
               </h4>
               <button
                 type="button"
@@ -1194,7 +1516,7 @@ export default function CreateCourse() {
             </div>
 
             <div className="flex justify-between items-center pt-2">
-              <p className="text-[10px] text-on-surface-variant italic">Format: Section Title, Lesson Title, Duration (e.g. 10:00)</p>
+              <p className="text-[10px] text-on-surface-variant italic">Format: Section, Lesson Name, Duration (e.g. 10:00)</p>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -1206,13 +1528,186 @@ export default function CreateCourse() {
                 <button
                   type="button"
                   onClick={handleCsvImport}
-                  disabled={isImporting}
                   className="px-5 py-2 bg-primary-container text-on-primary-container rounded-lg text-xs font-bold cursor-pointer hover:bg-primary-container/90"
                 >
-                  {isImporting ? "Importing..." : "Parse & Import"}
+                  Parse & Preview
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Premium Excel & CSV Smart File Importer Modal */}
+      {showFileImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
+          <div className="glass-panel inner-glow-border rounded-xl p-6 max-w-2xl w-full bg-surface-container border border-white/10 space-y-6 my-8 animate-scaleUp">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded bg-primary-container/10 flex items-center justify-center text-primary-container">
+                  <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>table_chart</span>
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-white">Smart Spreadsheet Importer</h4>
+                  <p className="text-[10px] text-on-surface-variant">Auto-parse curriculum roadmaps from custom files</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFileImportModal(false);
+                  setImportedSectionsPreview([]);
+                }}
+                className="p-1 hover:bg-white/10 rounded text-on-surface-variant hover:text-white"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Main Modal Content Split */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              
+              {/* Left Column: Upload or Preview (7/12) */}
+              <div className="md:col-span-7 space-y-4">
+                
+                {importedSectionsPreview.length === 0 ? (
+                  /* File Upload Drop Zone */
+                  <div className="space-y-4">
+                    <label className="border-2 border-dashed border-outline-variant/30 hover:border-primary-container rounded-lg p-10 flex flex-col items-center justify-center gap-4 bg-surface-variant/5 hover:bg-surface-variant/10 transition-all cursor-pointer group text-center">
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      {isParsingFile ? (
+                        <div className="space-y-3">
+                          <div className="w-10 h-10 rounded-full border-4 border-surface-container-high border-t-primary-container animate-spin mx-auto"></div>
+                          <p className="text-xs font-semibold text-primary-container">Reading & grouping roadmap columns...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-primary-container group-hover:scale-110 transition-transform">
+                            <span className="material-symbols-outlined text-[28px]">cloud_upload</span>
+                          </div>
+                          <div>
+                            <p className="font-body-md text-white font-semibold text-sm">Select Excel (.xlsx) or CSV file</p>
+                            <p className="text-[11px] text-on-surface-variant mt-1">Accepts roadmaps formatted like `AI roadmap.xlsx`</p>
+                          </div>
+                        </>
+                      )}
+                    </label>
+
+                    {/* Or paste CSV text button */}
+                    <div className="text-center">
+                      <span className="text-[10px] text-on-surface-variant">or want to paste outline instead? </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowFileImportModal(false);
+                          setShowImportModal(true);
+                        }}
+                        className="text-[10px] text-primary-container font-bold underline hover:text-amber-400 cursor-pointer"
+                      >
+                        Paste CSV Text
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Interactive Import Tree Preview */
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h5 className="text-xs font-bold text-primary-container uppercase tracking-wider">
+                        ROADMAP IMPORT PREVIEW ({selectedSheetName ? `Sheet: ${selectedSheetName}` : 'CSV'})
+                      </h5>
+                      <button
+                        type="button"
+                        onClick={() => setImportedSectionsPreview([])}
+                        className="text-[10px] text-red-400 font-bold hover:underline"
+                      >
+                        Reset Upload
+                      </button>
+                    </div>
+
+                    <div className="border border-outline-variant/20 rounded-xl p-3 bg-black/30 max-h-[250px] overflow-y-auto custom-scrollbar space-y-3">
+                      {importedSectionsPreview.map((s, sIdx) => (
+                        <div key={s.id} className="space-y-1">
+                          <p className="text-xs font-bold text-white flex items-center gap-1">
+                            <span className="text-[9px] bg-primary-container/20 text-primary-container px-1 py-0.5 rounded font-mono">S{sIdx + 1}</span>
+                            {s.title}
+                          </p>
+                          <div className="pl-3 border-l border-white/5 space-y-1">
+                            {s.lessons.map((l, lIdx) => (
+                              <p key={l.id} className="text-[10px] text-on-surface-variant truncate flex items-center justify-between">
+                                <span>L{lIdx + 1}: {l.title}</span>
+                                <span className="font-mono text-[9px] bg-white/5 px-1 rounded flex-shrink-0 ml-2">{l.duration}</span>
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Right Column: Visual Layout Guidance & Specifications (5/12) */}
+              <div className="md:col-span-5 border-l border-white/10 md:pl-6 space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <h5 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1">
+                    <span className="material-symbols-outlined text-xs text-amber-400">info</span>
+                    Column Mapping Guide
+                  </h5>
+                  <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                    Our smart import parser automatically detects headers in your Excel sheet or CSV and maps them logically:
+                  </p>
+
+                  <div className="bg-black/30 rounded border border-white/5 p-2 space-y-2 text-[9px] font-mono text-on-surface-variant">
+                    <p className="text-white border-b border-white/5 pb-1 flex justify-between font-bold">
+                      <span>Header In File</span>
+                      <span>Maps To</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>Phase / Week / Module</span>
+                      <span className="text-emerald-400 font-bold">Course Sections</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>Topics Covered / Title</span>
+                      <span className="text-primary-container font-bold">Lesson Titles</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>Day / Unit Number</span>
+                      <span className="text-cream-accent font-bold">Prefixes Title</span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span>Duration / Time</span>
+                      <span className="text-purple-400 font-bold">Lesson Duration</span>
+                    </p>
+                  </div>
+
+                  <p className="text-[9px] text-on-surface-variant italic leading-relaxed">
+                    💡 <strong>Tip:</strong> If your sheet is structured day-by-day (like the `AI roadmap.xlsx`), the parser will group the lessons seamlessly.
+                  </p>
+                </div>
+
+                {/* Import Apply CTA */}
+                {importedSectionsPreview.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleApplyImportedCurriculum}
+                    className="w-full py-3 bg-gradient-to-r from-primary-container to-amber-500 text-on-primary-container rounded-lg text-xs font-bold shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 border border-white/10"
+                  >
+                    <span className="material-symbols-outlined text-xs">done_all</span>
+                    Apply to Curriculum Builder
+                  </button>
+                )}
+              </div>
+
+            </div>
+
           </div>
         </div>
       )}

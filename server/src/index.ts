@@ -352,6 +352,54 @@ app.post('/api/courses/:id/import-curriculum', async (req, res) => {
   }
 });
 
+// 13. Bulk Save Curriculum (Replaces all sections/lessons with a new structured list)
+app.post('/api/courses/:id/bulk-curriculum', async (req, res) => {
+  const { id } = req.params;
+  const { sections } = req.body; // Expecting array of { title, sort_order, lessons: [...] }
+  
+  try {
+    // We run this inside a transaction to ensure database consistency
+    await pool.query('BEGIN');
+    
+    // 1. Delete all existing sections (will cascade delete all lessons)
+    await pool.query('DELETE FROM sections WHERE course_id = $1', [id]);
+    
+    // 2. Insert new sections and lessons
+    if (sections && Array.isArray(sections)) {
+      for (let sIdx = 0; sIdx < sections.length; sIdx++) {
+        const section = sections[sIdx];
+        const sectRes = await pool.query(
+          'INSERT INTO sections (course_id, title, sort_order) VALUES ($1, $2, $3) RETURNING id',
+          [id, section.title || `Section ${sIdx + 1}`, section.sort_order || (sIdx + 1)]
+        );
+        const sectionId = sectRes.rows[0].id;
+        
+        if (section.lessons && Array.isArray(section.lessons)) {
+          for (let lIdx = 0; lIdx < section.lessons.length; lIdx++) {
+            const lesson = section.lessons[lIdx];
+            await pool.query(
+              'INSERT INTO lessons (section_id, title, duration, sort_order, media_url) VALUES ($1, $2, $3, $4, $5)',
+              [
+                sectionId,
+                lesson.title || `Lesson ${lIdx + 1}`,
+                lesson.duration || '10:00',
+                lesson.sort_order || (lIdx + 1),
+                lesson.media_url || ''
+              ]
+            );
+          }
+        }
+      }
+    }
+    
+    await pool.query('COMMIT');
+    res.json({ success: true, message: 'Curriculum bulk saved successfully' });
+  } catch (err: any) {
+    await pool.query('ROLLBACK');
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Example route using Supabase Data API (if setup)
 app.get('/api/users', async (req, res) => {
   if (!supabase) {
