@@ -34,11 +34,8 @@ export const supabase = supabaseUrl.startsWith('http')
   ? createClient(supabaseUrl, supabaseKey, {
       auth: { persistSession: false },
       realtime: {
-        transport: WebSocket,
-      },
-      global: {
-        WebSocket,
-      },
+        transport: WebSocket as any,
+      }
     }) 
   : null;
 
