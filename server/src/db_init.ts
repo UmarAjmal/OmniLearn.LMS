@@ -50,6 +50,49 @@ async function initDB() {
     `);
     console.log('✅ "lessons" table initialized successfully!');
 
+    // 4. Create users table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(50) DEFAULT 'student',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ "users" table initialized successfully!');
+
+    // 5. Create applicants table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS applicants (
+        id SERIAL PRIMARY KEY,
+        first_name VARCHAR(100) NOT NULL,
+        last_name VARCHAR(100) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        phone VARCHAR(50) NOT NULL,
+        academic_background TEXT,
+        course_interest VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ "applicants" table initialized successfully!');
+
+    // 6. Create students table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS students (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(id) ON DELETE CASCADE,
+        first_name VARCHAR(100) NOT NULL,
+        last_name VARCHAR(100) NOT NULL,
+        enrollment_id VARCHAR(100) UNIQUE,
+        program TEXT,
+        avatar_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ "students" table initialized successfully!');
+
     // Optional: Insert some initial mock courses if table is empty
     const courseCheck = await pool.query('SELECT COUNT(*) FROM courses');
     if (parseInt(courseCheck.rows[0].count) === 0) {

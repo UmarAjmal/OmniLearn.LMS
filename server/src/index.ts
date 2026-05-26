@@ -415,6 +415,151 @@ app.get('/api/users', async (req, res) => {
   res.json({ data });
 });
 
+// ==========================================
+// APPLICANTS & STUDENTS API ROUTES
+// ==========================================
+
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
+
+// Submit new Application
+app.post('/api/applicants', async (req, res) => {
+  const { first_name, last_name, email, phone, program, academic_background, course_interest } = req.body;
+  try {
+    const query = `
+      INSERT INTO applicants (first_name, last_name, email, phone, academic_background, course_interest, program)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `;
+    const result = await pool.query(query, [
+      first_name, 
+      last_name, 
+      email, 
+      phone, 
+      academic_background || '', 
+      course_interest || '',
+      program || ''
+    ]);
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get all pending applicants
+app.get('/api/applicants', async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM applicants WHERE status = 'pending' ORDER BY created_at DESC");
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Approve Applicant (Creates User & Student)
+app.post('/api/applicants/:id/approve', async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // 1. Get applicant
+    const applicantRes = await client.query('SELECT * FROM applicants WHERE id = $1', [id]);
+    if (applicantRes.rows.length === 0) {
+      throw new Error("Applicant not found");
+    }
+    const applicant = applicantRes.rows[0];
+    
+    if (applicant.status === 'approved') {
+      throw new Error("Applicant already approved");
+    }
+
+    // 2. Hash phone as password
+    const hashedPassword = await bcrypt.hash(applicant.phone, 10);
+    
+    // 3. Create User
+    const userRes = await client.query(`
+      INSERT INTO users (email, password_hash, role)
+      VALUES ($1, $2, 'student')
+      RETURNING id
+    `, [applicant.email, hashedPassword]);
+    const userId = userRes.rows[0].id;
+
+    // 4. Create Student
+    const enrollmentId = 'ENR-' + Date.now().toString().slice(-6) + '-' + applicant.id;
+    await client.query(`
+      INSERT INTO students (user_id, first_name, last_name, enrollment_id, program)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [userId, applicant.first_name, applicant.last_name, enrollmentId, applicant.program]);
+
+    // 5. Update Applicant Status
+    await client.query("UPDATE applicants SET status = 'approved' WHERE id = $1", [id]);
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Applicant approved. User and Student accounts created successfully.' });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Reject Applicant
+app.post('/api/applicants/:id/reject', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query("UPDATE applicants SET status = 'rejected' WHERE id = $1", [id]);
+    res.json({ success: true, message: 'Applicant rejected.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// AUTHENTICATION API ROUTES (JWT)
+// ==========================================
+
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    // 1. Find user by email
+    const userRes = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userRes.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    }
+    const user = userRes.rows[0];
+
+    // 2. Check password
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    }
+
+    // 3. Generate token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({ 
+      success: true, 
+      token, 
+      user: { 
+        id: user.id, 
+        email: user.email, 
+        role: user.role 
+      } 
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });

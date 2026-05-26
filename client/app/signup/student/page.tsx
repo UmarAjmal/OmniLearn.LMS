@@ -9,17 +9,37 @@ export default function StudentSignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fileName, setFileName] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-      // Future: Send to Admin
     setIsSubmitting(true);
     
-    // Simulate submission
-    setTimeout(() => {
-        setIsSubmitting(false);
-        toast.success("Application Submitted! Your profile has been received.");
-        router.push("/");
-    }, 1500);
+    try {
+      const formData = new FormData(e.currentTarget);
+      const data = {
+        first_name: formData.get("firstName"),
+        last_name: formData.get("lastName"),
+        email: formData.get("email"),
+        phone: formData.get("phone"),
+        program: formData.get("department"), // Storing department as program for now
+        academic_background: formData.get("university"),
+        course_interest: formData.get("interest")
+      };
+
+      const response = await fetch("http://localhost:5000/api/applicants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) throw new Error("Failed to submit application");
+
+      toast.success("Application Submitted! Your profile has been received.");
+      router.push("/");
+    } catch (err) {
+      toast.error("An error occurred while submitting your application.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const preventDefaults = (e: React.DragEvent) => {
@@ -80,23 +100,23 @@ export default function StudentSignupPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold tracking-wider uppercase text-on-surface-variant">First Name*</label>
-                  <input className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="Enter your first name" required type="text" />
+                  <input name="firstName" className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="Enter your first name" required type="text" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold tracking-wider uppercase text-on-surface-variant">Last Name*</label>
-                  <input className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="Enter your last name" required type="text" />
+                  <input name="lastName" className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="Enter your last name" required type="text" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold tracking-wider uppercase text-on-surface-variant">Email Address*</label>
-                  <input className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="alexander.vance@university.edu" required type="email" />
+                  <input name="email" className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="alexander.vance@university.edu" required type="email" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold tracking-wider uppercase text-on-surface-variant">Phone Number (Pakistan)*</label>
-                  <input className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="+92 3XX XXXXXXX" required type="tel" />
+                  <input name="phone" className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="+92 3XX XXXXXXX" required type="tel" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold tracking-wider uppercase text-on-surface-variant">CNIC Number*</label>
-                  <input className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="e.g. 42101-XXXXXXX-X" required type="text" />
+                  <input name="cnic" className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="e.g. 42101-XXXXXXX-X" required type="text" />
                 </div>
               </div>
             </section>
@@ -110,23 +130,23 @@ export default function StudentSignupPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex flex-col gap-2 md:col-span-2">
                   <label className="text-sm font-semibold tracking-wider uppercase text-on-surface-variant">University*</label>
-                  <input className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="Full name of your institution" required type="text" />
+                  <input name="university" className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="Full name of your institution" required type="text" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold tracking-wider uppercase text-on-surface-variant">Department*</label>
-                  <select className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all appearance-none cursor-pointer" required>
-                    <option className="bg-[#14213D] text-white" disabled selected value="">Select Department</option>
-                    <option className="bg-[#14213D] text-white" value="cs">Computer Science</option>
-                    <option className="bg-[#14213D] text-white" value="se">Software Engineering</option>
-                    <option className="bg-[#14213D] text-white" value="it">IT</option>
-                    <option className="bg-[#14213D] text-white" value="ai">AI</option>
-                    <option className="bg-[#14213D] text-white" value="ds">Data Science</option>
+                  <select name="department" className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all appearance-none cursor-pointer" required defaultValue="">
+                    <option className="bg-[#14213D] text-white" disabled value="">Select Department</option>
+                    <option className="bg-[#14213D] text-white" value="Computer Science">Computer Science</option>
+                    <option className="bg-[#14213D] text-white" value="Software Engineering">Software Engineering</option>
+                    <option className="bg-[#14213D] text-white" value="IT">IT</option>
+                    <option className="bg-[#14213D] text-white" value="AI">AI</option>
+                    <option className="bg-[#14213D] text-white" value="Data Science">Data Science</option>
                   </select>
                 </div>
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold tracking-wider uppercase text-on-surface-variant">Current Semester*</label>
-                  <select className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all appearance-none cursor-pointer" required>
-                    <option className="bg-[#14213D] text-white" disabled selected value="">Select Semester</option>
+                  <select name="semester" className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all appearance-none cursor-pointer" required defaultValue="">
+                    <option className="bg-[#14213D] text-white" disabled value="">Select Semester</option>
                     <option className="bg-[#14213D] text-white" value="1">1st</option>
                     <option className="bg-[#14213D] text-white" value="2">2nd</option>
                     <option className="bg-[#14213D] text-white" value="3">3rd</option>
@@ -139,7 +159,7 @@ export default function StudentSignupPage() {
                 </div>
                 <div className="flex flex-col gap-2 md:col-span-2">
                   <label className="text-sm font-semibold tracking-wider uppercase text-on-surface-variant">University Registration Number*</label>
-                  <input className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="e.g. 2021-CS-123" required type="text" />
+                  <input name="regNumber" className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all" placeholder="e.g. 2021-CS-123" required type="text" />
                 </div>
               </div>
             </section>
@@ -152,7 +172,7 @@ export default function StudentSignupPage() {
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-semibold tracking-wider uppercase text-on-surface-variant">Areas of Interest (Optional)</label>
-                <textarea className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all resize-none" placeholder="Mention your technical skills, projects, or specific fields you want to work in..." rows={4}></textarea>
+                <textarea name="interest" className="bg-transparent border-0 border-b border-outline-variant py-3 px-0 text-white student-input-glow transition-all resize-none" placeholder="Mention your technical skills, projects, or specific fields you want to work in..." rows={4}></textarea>
               </div>
             </section>
 
