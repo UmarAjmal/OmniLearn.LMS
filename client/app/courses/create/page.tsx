@@ -434,31 +434,90 @@ export default function CreateCourse() {
         headerRowIdx = i;
         break;
       }
-    }
+    }    const headers = grid[headerRowIdx].map(x => String(x || "").trim().toLowerCase());
 
-    const headers = grid[headerRowIdx].map(x => String(x || "").trim().toLowerCase());
-    
-    // 2. Identify column indices with specific priority order
+    // 2. INTELLIGENT column detection — priority-ordered to prevent cross-stealing
+    // Helper: strict word match (whole-word only, short cell preferred)
+    const exactMatch = (cell: string, words: string[]) =>
+      words.some(w => cell === w || cell === w + "s" || cell === w + ".");
+    const looseMatch = (cell: string, words: string[], maxLen = 35) =>
+      cell.length <= maxLen && words.some(w => cell.includes(w));
+
+    // Detect in strict priority order — each detected column is "claimed" and excluded from others
+    const claimed = new Set<number>();
+
+    // DAY/NUMBER column — strict matching only to avoid stealing "Hands-on Task" etc.
+    let dayIdx = headers.findIndex((h, i) =>
+      !claimed.has(i) && (exactMatch(h, ["day", "no", "number", "#", "sr", "serial"]) ||
+        (h.length <= 15 && (h === "day no" || h === "day number" || h.startsWith("day ") && h.length < 12)))
+    );
+    if (dayIdx !== -1) claimed.add(dayIdx);
+
+    // SECTION/PHASE column (highest grouping priority)
     let sectionIdx = -1;
-    const sectionKeywords = ["phase", "section", "module", "chapter", "week", "subject"];
-    for (const kw of sectionKeywords) {
-      sectionIdx = headers.findIndex(h => h.includes(kw));
-      if (sectionIdx !== -1) break;
+    for (const kw of ["phase", "section", "module", "chapter", "unit", "week", "subject", "category"]) {
+      sectionIdx = headers.findIndex((h, i) => !claimed.has(i) && looseMatch(h, [kw]));
+      if (sectionIdx !== -1) { claimed.add(sectionIdx); break; }
     }
 
-    let titleIdx = headers.findIndex(h => h.includes("topic") || h.includes("lesson") || h.includes("title") || h.includes("subject") || h.includes("name"));
-    let dayIdx = headers.findIndex(h => h.includes("day") || h.includes("number") || h.includes("id") || h.includes("no"));
-    let durationIdx = headers.findIndex(h => h.includes("duration") || h.includes("time") || h.includes("length"));
-    
-    // Custom enterprise fields detection
-    let taskIdx = headers.findIndex(h => h.includes("task") || h.includes("exercise") || h.includes("hands-on") || h.includes("practice") || h.includes("activity"));
-    let milestoneIdx = headers.findIndex(h => h.includes("milestone") || h.includes("project") || h.includes("assignment"));
-    let techIdx = headers.findIndex(h => h.includes("stack") || h.includes("tech") || h.includes("tool") || h.includes("technology"));
-    let diffIdx = headers.findIndex(h => h.includes("difficulty") || h.includes("level"));
+    // TITLE/TOPIC column (the lesson name)
+    let titleIdx = headers.findIndex((h, i) =>
+      !claimed.has(i) && looseMatch(h, ["topic", "lesson", "title", "lecture", "content", "description", "name"])
+    );
+    if (titleIdx !== -1) claimed.add(titleIdx);
 
-    // Fallbacks if columns are not found
+    // DURATION column
+    let durationIdx = headers.findIndex((h, i) =>
+      !claimed.has(i) && looseMatch(h, ["duration", "length", "time", "minutes", "hours", "mins", "hrs"])
+    );
+    if (durationIdx !== -1) claimed.add(durationIdx);
+
+    // DIFFICULTY/LEVEL column
+    let diffIdx = headers.findIndex((h, i) =>
+      !claimed.has(i) && looseMatch(h, ["difficulty", "level", "complexity"])
+    );
+    if (diffIdx !== -1) claimed.add(diffIdx);
+
+    // TECH STACK column
+    let techIdx = headers.findIndex((h, i) =>
+      !claimed.has(i) && looseMatch(h, ["stack", "tech", "tool", "technology", "language", "framework"])
+    );
+    if (techIdx !== -1) claimed.add(techIdx);
+
+    // PROJECT MILESTONE column
+    let milestoneIdx = headers.findIndex((h, i) =>
+      !claimed.has(i) && looseMatch(h, ["milestone", "project milestone", "deliverable", "assignment"])
+    );
+    if (milestoneIdx !== -1) claimed.add(milestoneIdx);
+
+    // HANDS-ON TASK column (last, broadest match)
+    let taskIdx = headers.findIndex((h, i) =>
+      !claimed.has(i) && looseMatch(h, ["task", "exercise", "hands-on", "practice", "activity", "project", "lab", "challenge"])
+    );
+    if (taskIdx !== -1) claimed.add(taskIdx);
+
+    // Resolve sectionIdx/titleIdx conflict — if both map to same column, pick next best for title
+    if (sectionIdx !== -1 && sectionIdx === titleIdx) {
+      titleIdx = headers.findIndex((h, i) => !claimed.has(i) && i !== sectionIdx);
+    }
+
+    // Fallbacks if still not found
     if (sectionIdx === -1) sectionIdx = 0;
-    if (titleIdx === -1) titleIdx = grid[headerRowIdx].length > 1 ? 1 : 0;
+    if (titleIdx === -1) titleIdx = grid[headerRowIdx].length > 1 ? (sectionIdx === 0 ? 1 : 0) : 0;
+
+    // Debug log — visible in browser console to help diagnose any future issues
+    console.log("[CurriculumParser] Detected columns:", {
+      headerRow: headerRowIdx,
+      headers,
+      day: dayIdx !== -1 ? `[${dayIdx}] "${headers[dayIdx]}"` : "not found",
+      section: sectionIdx !== -1 ? `[${sectionIdx}] "${headers[sectionIdx]}"` : "not found",
+      title: titleIdx !== -1 ? `[${titleIdx}] "${headers[titleIdx]}"` : "not found",
+      duration: durationIdx !== -1 ? `[${durationIdx}] "${headers[durationIdx]}"` : "not found",
+      task: taskIdx !== -1 ? `[${taskIdx}] "${headers[taskIdx]}"` : "not found",
+      milestone: milestoneIdx !== -1 ? `[${milestoneIdx}] "${headers[milestoneIdx]}"` : "not found",
+      tech: techIdx !== -1 ? `[${techIdx}] "${headers[techIdx]}"` : "not found",
+      difficulty: diffIdx !== -1 ? `[${diffIdx}] "${headers[diffIdx]}"` : "not found",
+    });
 
     const parsedSections: Section[] = [];
     const sectionMap: { [key: string]: Section } = {};
@@ -505,8 +564,10 @@ export default function CreateCourse() {
       }
 
       if (rawLessonTitle) {
-        const prefix = rawDay ? `Day ${rawDay}: ` : "";
-        const lessonTitle = `${prefix}${rawLessonTitle}`;
+        // Normalize rawDay to avoid "Day Day 1:" — strip any leading "day" word before building prefix
+        const dayNum = rawDay.replace(/^day\s*/i, "").trim();
+        const prefix = dayNum && /^\d+$/.test(dayNum) ? `Day ${dayNum}: ` : (rawDay ? `${rawDay}: ` : "");
+        const lessonTitle = rawLessonTitle.toLowerCase().startsWith("day ") ? rawLessonTitle : `${prefix}${rawLessonTitle}`;
         
         let duration = rawDuration;
         if (!duration || duration === "—" || duration === "undefined" || duration === "") {
