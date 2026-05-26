@@ -136,6 +136,20 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
             </span>
             <span className="font-body-md text-sm font-semibold">Dashboard</span>
           </Link>
+          <Link
+            href="/courses"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
+              pathname.startsWith("/courses")
+                ? "bg-primary/10 text-primary border-l-4 border-primary" 
+                : "text-on-surface-variant hover:text-white hover:bg-white/10"
+            }`}
+          >
+            <span className="material-symbols-outlined" data-icon="menu_book">
+              menu_book
+            </span>
+            <span className="font-body-md text-sm font-semibold">Courses</span>
+          </Link>
           <a
             className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
             href="#"
