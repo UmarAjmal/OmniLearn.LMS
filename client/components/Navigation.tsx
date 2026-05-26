@@ -17,8 +17,10 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
     const auth = localStorage.getItem("lms_auth") === "true";
     setIsAuthenticated(auth);
 
-    if (pathname === "/") {
-      if (auth) {
+    const isPublicRoute = pathname === "/" || pathname.startsWith("/signup");
+
+    if (isPublicRoute) {
+      if (auth && pathname === "/") {
         router.push("/dashboard");
       } else {
         setIsCheckingAuth(false);
@@ -59,7 +61,8 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
     );
   }
 
-  if (pathname === "/") {
+  const isPublicRoute = pathname === "/" || pathname.startsWith("/signup");
+  if (isPublicRoute) {
     return <>{children}</>;
   }
 
