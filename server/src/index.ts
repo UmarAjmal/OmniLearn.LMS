@@ -568,9 +568,10 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/students', async (req, res) => {
   try {
     const query = `
-      SELECT s.*, u.email 
+      SELECT s.*, u.email, a.phone 
       FROM students s 
       JOIN users u ON s.user_id = u.id 
+      LEFT JOIN applicants a ON a.email = u.email 
       ORDER BY s.created_at DESC
     `;
     const result = await pool.query(query);

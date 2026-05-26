@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
@@ -15,6 +16,7 @@ interface Student {
   program: string;
   avatar_url?: string;
   email: string;
+  phone?: string;
   created_at: string;
 }
 
@@ -22,28 +24,38 @@ export default function StudentsPage() {
   const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
+  const [availableCourses, setAvailableCourses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters State
   const [courseFilter, setCourseFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("");
 
+  // Fetch registered students & available courses
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/students`);
-        const json = await response.json();
-        if (json.success) {
-          setStudents(json.data);
-          setFilteredStudents(json.data);
+        // 1. Fetch Students
+        const studentsRes = await fetch(`${API_BASE_URL}/api/students`);
+        const studentsJson = await studentsRes.json();
+        if (studentsJson.success) {
+          setStudents(studentsJson.data);
+          setFilteredStudents(studentsJson.data);
+        }
+
+        // 2. Fetch Courses
+        const coursesRes = await fetch(`${API_BASE_URL}/api/courses`);
+        const coursesJson = await coursesRes.json();
+        if (coursesJson.success) {
+          setAvailableCourses(coursesJson.data);
         }
       } catch (err) {
-        console.error("Failed to fetch students:", err);
+        console.error("Failed to fetch data:", err);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchStudents();
+    fetchData();
   }, []);
 
   // Stable deterministic dynamic student mock parameters based on ID
@@ -53,7 +65,6 @@ export default function StudentsPage() {
   };
 
   const getStudentPerformance = (id: number) => {
-    // Dynamic grade scores
     const percentage = 50 + (id % 47) + (id % 3 === 0 ? 4 : 0);
     const label = percentage >= 90 ? "Top 5%" : percentage >= 75 ? "Improving" : "At Risk";
     return { percentage, label };
@@ -75,11 +86,7 @@ export default function StudentsPage() {
     if (courseFilter) {
       result = result.filter((s) => {
         if (!s.program) return false;
-        const prog = s.program.toLowerCase();
-        if (courseFilter === "cs") return prog.includes("computer science") || prog.includes("software engineering") || prog.includes("it");
-        if (courseFilter === "da") return prog.includes("data") || prog.includes("architecture") || prog.includes("ai");
-        if (courseFilter === "ui") return prog.includes("ui") || prog.includes("design");
-        return prog.includes(courseFilter.toLowerCase());
+        return s.program.toLowerCase() === courseFilter.toLowerCase();
       });
     }
 
@@ -93,11 +100,126 @@ export default function StudentsPage() {
     setFilteredStudents(result);
   }, [courseFilter, paymentFilter, students]);
 
-  // Aggregate dashboard stats
-  const totalCount = students.length || 1284;
+  // Dynamic aggregates calculation
+  const totalCount = students.length;
   const paidCount = students.filter((s) => getStudentPaymentStatus(s.id) === "Paid").length;
-  const paidPercentage = students.length ? Math.round((paidCount / students.length) * 100) : 82;
-  const unpaidFeesCount = students.length ? students.filter((s) => getStudentPaymentStatus(s.id) === "Unpaid").length : 42;
+  const paidPercentage = students.length ? Math.round((paidCount / students.length) * 100) : 0;
+  const unpaidFeesCount = students.filter((s) => getStudentPaymentStatus(s.id) === "Unpaid").length;
+
+  // Intelligent WhatsApp redirection deep-link / web fallback handler
+  const handleWhatsAppRedirect = (e: React.MouseEvent, phone: string | undefined) => {
+    e.stopPropagation(); // Prevent row click navigation
+    
+    if (!phone) {
+      toast.warning("No contact number associated with this student registry.");
+      return;
+    }
+
+    // Prepend country code and strip non-numeric parameters
+    let cleanPhone = phone.replace(/[^0-9]/g, "");
+    if (cleanPhone.startsWith("0")) {
+      cleanPhone = "92" + cleanPhone.slice(1);
+    }
+    // If not starting with country code, assume Pakistan prefix standard
+    if (!cleanPhone.startsWith("92") && cleanPhone.length === 10) {
+      cleanPhone = "92" + cleanPhone;
+    }
+
+    const deepLink = `whatsapp://send?phone=${cleanPhone}`;
+    const webLink = `https://web.whatsapp.com/send?phone=${cleanPhone}`;
+
+    toast.info("Launching WhatsApp deep-link connection...", { autoClose: 2000 });
+
+    // 1. Create a temporary hidden iframe to fire deep-link protocol safely
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = deepLink;
+    document.body.appendChild(iframe);
+
+    // Remove iframe after short delay
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 300);
+
+    // 2. Fallback checking: If window is still focused after 1.5s, launch web portal instead
+    const start = Date.now();
+    const timer = setTimeout(() => {
+      if (document.hasFocus() && Date.now() - start < 2000) {
+        toast.info("WhatsApp app not detected. Launching WhatsApp Web portal...", { autoClose: 2000 });
+        window.open(webLink, "_blank");
+      }
+    }, 1500);
+
+    // Cancel fallback if window blurs (meaning app launched successfully!)
+    const handleBlur = () => {
+      clearTimeout(timer);
+      window.removeEventListener("blur", handleBlur);
+    };
+    window.addEventListener("blur", handleBlur);
+  };
+
+  // High-fidelity Excel workbook exporter dynamically loaded from CDN
+  const handleExcelExport = async () => {
+    if (filteredStudents.length === 0) {
+      toast.warning("No student records available to export.");
+      return;
+    }
+
+    toast.info("Preparing Excel spreadsheet compiler...", { autoClose: 1500 });
+
+    try {
+      const loadSheetJS = () => {
+        return new Promise<void>((resolve, reject) => {
+          if ((window as any).XLSX) {
+            resolve();
+            return;
+          }
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Failed to load exporter"));
+          document.head.appendChild(script);
+        });
+      };
+
+      await loadSheetJS();
+      const XLSX = (window as any).XLSX;
+
+      // Map rows with clean corporate headings
+      const worksheetData = filteredStudents.map((s, index) => ({
+        "Enrollment ID": s.enrollment_id,
+        "Student Name": `${s.first_name} ${s.last_name}`,
+        "Email Address": s.email,
+        "Contact Number": s.phone || "N/A",
+        "Registered Course / Department": s.program || "General Education",
+        "Payment Status": getStudentPaymentStatus(s.id),
+        "Performance Grade": `${getStudentPerformance(s.id).percentage}%`,
+        "Enrollment Date": new Date(s.created_at).toLocaleDateString()
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "LMS Enrolled Students");
+
+      // Auto-fit column widths dynamically
+      const maxColWidths = Object.keys(worksheetData[0]).map((key) => {
+        let maxLen = key.length;
+        worksheetData.forEach((row: any) => {
+          const val = String(row[key] || "");
+          if (val.length > maxLen) maxLen = val.length;
+        });
+        return { wch: maxLen + 3 };
+      });
+      worksheet["!cols"] = maxColWidths;
+
+      // Download spreadsheet
+      XLSX.writeFile(workbook, "OmniLearn_Registered_Students.xlsx");
+      toast.success("Spreadsheet downloaded successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Spreadsheet compilation failed.");
+    }
+  };
 
   return (
     <div className="relative">
@@ -120,7 +242,7 @@ export default function StudentsPage() {
           <button 
             type="button"
             onClick={() => router.push("/students/applicants")}
-            className="bg-primary text-black font-bold px-8 py-4 rounded-xl flex items-center gap-3 shadow-[0_15px_30px_rgba(252,163,17,0.3)] hover:shadow-[0_20px_40px_rgba(252,163,17,0.4)] active:scale-95 transition-all cursor-pointer"
+            className="bg-primary text-black font-bold px-8 py-4 rounded-xl flex items-center gap-3 shadow-[0_15px_30px_rgba(252,163,17,0.3)] hover:shadow-[0_20px_40px_rgba(252,163,17,0.4)] active:scale-95 transition-all cursor-pointer select-none"
           >
             <span className="material-symbols-outlined">person_add</span>
             <span className="font-semibold text-sm tracking-widest uppercase">New Applicants</span>
@@ -135,7 +257,7 @@ export default function StudentsPage() {
             </div>
             <div>
               <p className="text-on-surface-variant text-[12px] uppercase tracking-widest font-semibold">Total Enrolled</p>
-              <p className="text-2xl font-bold text-white">{totalCount.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-white">{isLoading ? "..." : totalCount.toLocaleString()}</p>
             </div>
           </div>
           <div className="student-glass-panel p-6 rounded-2xl flex items-center gap-4">
@@ -144,7 +266,7 @@ export default function StudentsPage() {
             </div>
             <div>
               <p className="text-on-surface-variant text-[12px] uppercase tracking-widest font-semibold">Paid Status</p>
-              <p className="text-2xl font-bold text-white">{paidPercentage}%</p>
+              <p className="text-2xl font-bold text-white">{isLoading ? "..." : `${paidPercentage}%`}</p>
             </div>
           </div>
           <div className="student-glass-panel p-6 rounded-2xl flex items-center gap-4">
@@ -153,7 +275,7 @@ export default function StudentsPage() {
             </div>
             <div>
               <p className="text-on-surface-variant text-[12px] uppercase tracking-widest font-semibold">Avg. Grade</p>
-              <p className="text-2xl font-bold text-white">A- (3.85)</p>
+              <p className="text-2xl font-bold text-white">{isLoading ? "..." : "A- (3.85)"}</p>
             </div>
           </div>
           <div className="student-glass-panel p-6 rounded-2xl flex items-center gap-4">
@@ -162,7 +284,7 @@ export default function StudentsPage() {
             </div>
             <div>
               <p className="text-on-surface-variant text-[12px] uppercase tracking-widest font-semibold">Unpaid Fees</p>
-              <p className="text-2xl font-bold text-white">{unpaidFeesCount}</p>
+              <p className="text-2xl font-bold text-white">{isLoading ? "..." : unpaidFeesCount}</p>
             </div>
           </div>
         </div>
@@ -174,12 +296,14 @@ export default function StudentsPage() {
               <select 
                 value={courseFilter}
                 onChange={(e) => setCourseFilter(e.target.value)}
-                className="w-full bg-[#14213D] border border-white/10 rounded-lg py-3 pl-4 pr-10 appearance-none text-white focus:outline-none focus:border-primary/50 cursor-pointer"
+                className="w-full bg-[#14213D] border border-white/10 rounded-lg py-3.5 pl-4 pr-10 appearance-none text-white focus:outline-none focus:border-primary/50 cursor-pointer text-sm font-semibold"
               >
                 <option value="">All Courses</option>
-                <option value="cs">Computer Science / Software Eng.</option>
-                <option value="da">Data Architecture / AI</option>
-                <option value="ui">Advanced UI Design</option>
+                {availableCourses.map((c) => (
+                  <option key={c.id} value={c.title}>
+                    {c.title}
+                  </option>
+                ))}
               </select>
               <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none">expand_more</span>
             </div>
@@ -187,7 +311,7 @@ export default function StudentsPage() {
               <select 
                 value={paymentFilter}
                 onChange={(e) => setPaymentFilter(e.target.value)}
-                className="w-full bg-[#14213D] border border-white/10 rounded-lg py-3 pl-4 pr-10 appearance-none text-white focus:outline-none focus:border-primary/50 cursor-pointer"
+                className="w-full bg-[#14213D] border border-white/10 rounded-lg py-3.5 pl-4 pr-10 appearance-none text-white focus:outline-none focus:border-primary/50 cursor-pointer text-sm font-semibold"
               >
                 <option value="">Payment Status</option>
                 <option value="paid">Paid</option>
@@ -199,15 +323,20 @@ export default function StudentsPage() {
           </div>
           <div className="flex flex-col w-full lg:w-auto sm:flex-row items-center gap-3">
             <button 
+              type="button"
               onClick={() => { setCourseFilter(""); setPaymentFilter(""); }}
-              className="w-full sm:w-auto flex justify-center items-center gap-2 px-4 py-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-all text-on-surface-variant cursor-pointer"
+              className="w-full sm:w-auto flex justify-center items-center gap-2 px-4 py-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-all text-on-surface-variant cursor-pointer select-none text-xs font-semibold uppercase tracking-wider"
             >
-              <span className="material-symbols-outlined">filter_list</span>
-              <span className="text-sm font-semibold tracking-wider uppercase">Reset Filters</span>
+              <span className="material-symbols-outlined text-base">filter_list</span>
+              <span>Reset Filters</span>
             </button>
-            <button className="w-full sm:w-auto flex justify-center items-center gap-2 px-4 py-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-all text-on-surface-variant">
-              <span className="material-symbols-outlined">download</span>
-              <span className="text-sm font-semibold tracking-wider uppercase">Export</span>
+            <button 
+              type="button"
+              onClick={handleExcelExport}
+              className="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-3 bg-primary/10 border border-primary/20 hover:bg-primary/20 text-primary transition-all rounded-lg cursor-pointer select-none text-xs font-semibold uppercase tracking-wider"
+            >
+              <span className="material-symbols-outlined text-base">download</span>
+              <span>Export Excel</span>
             </button>
           </div>
         </div>
@@ -219,7 +348,7 @@ export default function StudentsPage() {
               <thead>
                 <tr className="bg-white/5 border-b border-white/10">
                   <th className="px-8 py-5 text-sm font-semibold text-on-surface-variant uppercase tracking-widest">Student Name</th>
-                  <th className="px-6 py-5 text-sm font-semibold text-on-surface-variant uppercase tracking-widest">Registered Course / Dept</th>
+                  <th className="px-6 py-5 text-sm font-semibold text-on-surface-variant uppercase tracking-widest">Registered Course</th>
                   <th className="px-6 py-5 text-sm font-semibold text-on-surface-variant uppercase tracking-widest">Payment Status</th>
                   <th className="px-6 py-5 text-sm font-semibold text-on-surface-variant uppercase tracking-widest">Performance</th>
                   <th className="px-8 py-5 text-sm font-semibold text-on-surface-variant uppercase tracking-widest text-right">Actions</th>
@@ -299,9 +428,22 @@ export default function StudentsPage() {
                           </div>
                         </td>
                         <td className="px-8 py-6 text-right">
-                          <button className="p-2 text-on-surface-variant hover:text-primary hover:bg-white/5 rounded-lg transition-all" onClick={(e) => { e.stopPropagation(); }}>
-                            <span className="material-symbols-outlined">more_vert</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-3">
+                            {/* Round styled WhatsApp Icon Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleWhatsAppRedirect(e, s.phone || "03001234567")}
+                              className="w-9 h-9 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/20 flex items-center justify-center transition-all cursor-pointer select-none"
+                              title="Connect on WhatsApp"
+                            >
+                              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                                <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.058 5.248 5.303 0 11.748 0c3.122.001 6.059 1.219 8.274 3.435s3.43 5.155 3.43 8.278c-.004 6.495-5.248 11.743-11.693 11.743-2.001-.001-3.967-.514-5.707-1.492L0 24zm6.59-4.846c1.62.962 3.21 1.468 4.975 1.47 5.434 0 9.85-4.409 9.853-9.83.002-2.624-1.02-5.09-2.875-6.948-1.855-1.859-4.325-2.883-6.953-2.884-5.438 0-9.855 4.41-9.858 9.832-.001 1.83.499 3.518 1.446 5.107L1.9 22.083l4.747-1.929zm12.39-7.234c-.308-.154-1.82-.9-2.102-1.002-.283-.103-.49-.155-.694.154-.205.31-.794.99-.973 1.196-.179.206-.357.23-.665.077-.308-.154-1.3-.478-2.476-1.527-.914-.815-1.53-1.82-1.71-2.128-.18-.308-.019-.475.135-.629.138-.138.308-.36.462-.54.154-.18.206-.309.308-.514.103-.206.051-.385-.026-.54-.077-.154-.694-1.671-.951-2.29-.25-.6-.524-.52-.719-.53h-.615c-.205 0-.54.077-.822.385-.282.31-1.077 1.053-1.077 2.57 0 1.516 1.102 2.98 1.256 3.186.154.205 2.169 3.31 5.253 4.64.734.317 1.307.506 1.753.647.738.234 1.41.201 1.942.121.593-.09 1.82-.743 2.076-1.46.257-.718.257-1.334.18-1.46-.077-.127-.282-.205-.59-.359z"/>
+                              </svg>
+                            </button>
+                            <button className="p-2 text-on-surface-variant hover:text-primary hover:bg-white/5 rounded-lg transition-all" onClick={(e) => { e.stopPropagation(); }}>
+                              <span className="material-symbols-outlined text-lg">more_vert</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
