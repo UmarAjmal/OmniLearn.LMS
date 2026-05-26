@@ -1,12 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { toast } from "react-toastify";
 
 export default function Navigation({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const auth = localStorage.getItem("lms_auth") === "true";
+    setIsAuthenticated(auth);
+
+    if (pathname === "/") {
+      if (auth) {
+        router.push("/dashboard");
+      } else {
+        setIsCheckingAuth(false);
+      }
+    } else {
+      if (!auth) {
+        // Boost back to login page
+        toast.error("Please sign in to access the executive dashboard.");
+        router.push("/");
+      } else {
+        setIsCheckingAuth(false);
+      }
+    }
+  }, [pathname, router]);
+
+  // Handle logout
+  const handleLogout = (e: React.MouseEvent) => {
+    e.preventDefault();
+    localStorage.removeItem("lms_auth");
+    toast.success("Successfully logged out.");
+    router.push("/");
+  };
 
   // Determine dynamic title based on route
   const getHeaderTitle = () => {
@@ -15,6 +49,19 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
     }
     return "Glacier";
   };
+
+  if (isCheckingAuth) {
+    return (
+      <div className="fixed inset-0 bg-[#000000] flex flex-col items-center justify-center z-50">
+        <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin mb-4" />
+        <p className="text-on-surface-variant font-light text-sm">Authenticating session...</p>
+      </div>
+    );
+  }
+
+  if (pathname === "/") {
+    return <>{children}</>;
+  }
 
   return (
     <>
@@ -28,7 +75,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
             <span className="material-symbols-outlined text-2xl">menu</span>
           </button>
           
-          <Link href="/">
+          <Link href="/dashboard">
             <span className="text-xl font-headline font-semibold tracking-tight text-primary flex items-center gap-2 cursor-pointer">
               {pathname.includes("/courses/create") && (
                 <span className="material-symbols-outlined hidden sm:block">school</span>
@@ -123,10 +170,10 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
         
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
           <Link
-            href="/"
+            href="/dashboard"
             onClick={() => setIsMobileMenuOpen(false)}
             className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
-              pathname === "/" 
+              pathname === "/dashboard" 
                 ? "bg-primary/10 text-primary border-l-4 border-primary" 
                 : "text-on-surface-variant hover:text-white hover:bg-white/10"
             }`}
@@ -194,15 +241,15 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
             </span>
             <span className="font-body-md text-sm font-semibold">Support</span>
           </a>
-          <a
-            className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
-            href="#"
+          <button
+            onClick={handleLogout}
+            className="w-full text-left text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all cursor-pointer border-none bg-transparent"
           >
             <span className="material-symbols-outlined" data-icon="logout">
               logout
             </span>
             <span className="font-body-md text-sm font-semibold">Logout</span>
-          </a>
+          </button>
         </div>
       </aside>
 

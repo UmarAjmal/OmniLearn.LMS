@@ -911,7 +911,7 @@ export default function CreateCourse() {
       const json = await res.json();
       if (json.success) {
         toast.success("Congratulations! Your course is published!");
-        router.push("/");
+        router.push("/dashboard");
       } else {
         toast.error(json.error || "Failed to publish course.");
       }
