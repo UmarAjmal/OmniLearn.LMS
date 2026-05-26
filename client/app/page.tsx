@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "react-toastify";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+
 export default function Dashboard() {
   const [courses, setCourses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -11,7 +13,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchCourses = async () => {
       try {
-        const response = await fetch("https://omnilearn-lms.onrender.com/api/courses");
+        const response = await fetch(`${API_BASE_URL}/api/courses`);
         const json = await response.json();
         if (json.success) {
           setCourses(json.data);

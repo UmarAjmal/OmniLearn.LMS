@@ -25,6 +25,8 @@ interface Section {
   isExpanded?: boolean;
 }
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+
 export default function CreateCourse() {
   const router = useRouter();
 
@@ -94,14 +96,14 @@ export default function CreateCourse() {
       
       if (courseId) {
         // Update existing course
-        response = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${courseId}`, {
+        response = await fetch(`${API_BASE_URL}/api/courses/${courseId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       } else {
         // Create new course
-        response = await fetch("https://omnilearn-lms.onrender.com/api/courses", {
+        response = await fetch(`${API_BASE_URL}/api/courses`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -143,7 +145,7 @@ export default function CreateCourse() {
   // ========================================================
   const fetchCurriculum = async (id: number) => {
     try {
-      const res = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${id}`);
+      const res = await fetch(`${API_BASE_URL}/api/courses/${id}`);
       const json = await res.json();
       if (json.success) {
         const loadedSections = (json.data.sections || []).map((s: any) => ({
@@ -171,7 +173,7 @@ export default function CreateCourse() {
     }
     setIsImporting(true);
     try {
-      const response = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${courseId}/bulk-curriculum`, {
+      const response = await fetch(`${API_BASE_URL}/api/courses/${courseId}/bulk-curriculum`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sections }),
@@ -677,7 +679,7 @@ export default function CreateCourse() {
             const chosenDuration = mockDurations[Math.floor(Math.random() * mockDurations.length)];
             const mockUrl = "https://player.vimeo.com/video/76979871";
 
-            fetch(`https://omnilearn-lms.onrender.com/api/lessons/${lessonId}`, {
+            fetch(`${API_BASE_URL}/api/lessons/${lessonId}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -709,7 +711,7 @@ export default function CreateCourse() {
     if (!courseId) return;
     setIsPublishing(true);
     try {
-      const res = await fetch(`https://omnilearn-lms.onrender.com/api/courses/${courseId}/publish`, {
+      const res = await fetch(`${API_BASE_URL}/api/courses/${courseId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ price: parseFloat(price) }),
