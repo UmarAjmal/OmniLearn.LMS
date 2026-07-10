@@ -56,7 +56,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
     if (pathname.includes("/courses/create")) {
       return "Course Builder";
     }
-    return "Glacier";
+    return "Falcon LMS";
   };
 
   if (isCheckingAuth) {
