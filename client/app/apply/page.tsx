@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/utils/supabase/client";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 const TRACKS = [
   { id: "fullstack-ai", label: "Full Stack AI Engineer", icon: "smart_toy" },
@@ -185,33 +186,30 @@ export default function ApplyPage() {
     setSubmitError(null);
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("training_applications")
-        .insert([
-          {
-            full_name: form.fullName.trim(),
-            father_name: form.fatherName.trim(),
-            cnic: form.cnic.replace(/[-\s]/g, ""),
-            age: Number(form.age),
-            whatsapp: form.whatsapp.trim(),
-            gmail: form.gmail.trim().toLowerCase(),
-            university_name: form.universityName.trim(),
-            department: form.department,
-            semester: Number(form.semester),
-            tracks: form.tracks,
-            reference_code: form.referenceCode.trim() || null,
-            status: "pending",
-          },
-        ]);
+      const response = await fetch(`${API_BASE_URL}/api/training-applications`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullName: form.fullName.trim(),
+          fatherName: form.fatherName.trim(),
+          cnic: form.cnic.replace(/[-\s]/g, ""),
+          age: Number(form.age),
+          whatsapp: form.whatsapp.trim(),
+          gmail: form.gmail.trim().toLowerCase(),
+          universityName: form.universityName.trim(),
+          department: form.department,
+          semester: Number(form.semester),
+          tracks: form.tracks,
+          referenceCode: form.referenceCode.trim() || null,
+        }),
+      });
 
-      if (error) {
-        console.error("Supabase insert error:", error);
-        setSubmitError(
-          error.code === "23505"
-            ? "An application with this CNIC or Gmail already exists."
-            : "Something went wrong while submitting. Please try again."
-        );
+      const resJson = await response.json();
+
+      if (!response.ok || !resJson.success) {
+        setSubmitError(resJson.error || "Something went wrong while submitting. Please try again.");
         return;
       }
 

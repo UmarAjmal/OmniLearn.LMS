@@ -619,9 +619,65 @@ app.get('/api/students', async (req, res) => {
 });
 
 
-// ==========================================
-// TRAINING APPLICATIONS ROUTES (FalconSwift)
-// ==========================================
+
+// POST submit a new training application (from public apply form)
+app.post('/api/training-applications', async (req, res) => {
+  const {
+    fullName,
+    fatherName,
+    cnic,
+    age,
+    whatsapp,
+    gmail,
+    universityName,
+    department,
+    semester,
+    tracks,
+    referenceCode
+  } = req.body;
+
+  try {
+    // 1. Check duplicates
+    const checkDup = await pool.query(
+      "SELECT id FROM training_applications WHERE cnic = $1 OR gmail = $2",
+      [cnic, gmail]
+    );
+    if (checkDup.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: "An application with this CNIC or Gmail already exists."
+      });
+    }
+
+    // 2. Insert application
+    const query = `
+      INSERT INTO training_applications (
+        full_name, father_name, cnic, age, whatsapp, gmail, 
+        university_name, department, semester, tracks, reference_code, status
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending')
+      RETURNING *
+    `;
+    const result = await pool.query(query, [
+      fullName,
+      fatherName,
+      cnic,
+      age,
+      whatsapp,
+      gmail,
+      universityName,
+      department,
+      semester,
+      tracks,
+      referenceCode
+    ]);
+
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    console.error("Error inserting application:", err.message);
+    res.status(500).json({ success: false, error: "Database error. Please try again." });
+  }
+});
 
 // GET all pending training applications
 app.get('/api/training-applications', async (req, res) => {
@@ -831,17 +887,29 @@ app.listen(PORT, async () => {
   } catch (dbErr: any) {
     console.error("Database self-correction failed:", dbErr.message);
   }
-  // Auto-migrate training_applications columns (status + reviewed_at)
-  if (supabase) {
-    try {
-      await pool.query(`
-        ALTER TABLE training_applications 
-        ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'pending',
-        ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ
-      `);
-      console.log('✅ "training_applications" table auto-migrated successfully!');
-    } catch (dbErr: any) {
-      console.warn('⚠️  training_applications migration skipped (table may not exist yet):', dbErr.message);
-    }
+  // Auto-create/migrate training_applications table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS training_applications (
+        id SERIAL PRIMARY KEY,
+        full_name VARCHAR(255) NOT NULL,
+        father_name VARCHAR(255) NOT NULL,
+        cnic VARCHAR(50) UNIQUE NOT NULL,
+        age INT NOT NULL,
+        whatsapp VARCHAR(50) NOT NULL,
+        gmail VARCHAR(255) UNIQUE NOT NULL,
+        university_name VARCHAR(255) NOT NULL,
+        department VARCHAR(100) NOT NULL,
+        semester INT NOT NULL,
+        tracks TEXT[] NOT NULL,
+        reference_code VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'pending',
+        reviewed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('✅ "training_applications" table created/verified successfully!');
+  } catch (dbErr: any) {
+    console.error('❌ Failed to verify/create "training_applications" table:', dbErr.message);
   }
 });
