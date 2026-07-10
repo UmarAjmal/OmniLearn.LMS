@@ -153,7 +153,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
           <span className="material-symbols-outlined">close</span>
         </button>
 
-        <div className="px-6 mb-8 mt-4 md:mt-0">
+        {/* <div className="px-6 mb-8 mt-4 md:mt-0">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 bg-gold-accent rounded-xl flex items-center justify-center text-black font-bold shrink-0">
               G
@@ -176,7 +176,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
               New Course
             </button>
           </Link>
-        </div>
+        </div> */}
         
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
           <Link
@@ -202,9 +202,9 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
                 : "text-on-surface-variant hover:text-white hover:bg-white/10"
             }`}
           >
-            <span className="material-symbols-outlined" data-icon="menu_book">
+            {/* <span className="material-symbols-outlined" data-icon="menu_book">
               menu_book
-            </span>
+            </span> */}
             <span className="font-body-md text-sm font-semibold">Courses</span>
           </Link>
           <Link
@@ -272,7 +272,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
               </div>
             )}
           </div>
-          <a
+          {/* <a
             className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
             href="#"
           >
@@ -292,7 +292,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
               account_balance_wallet
             </span>
             <span className="font-body-md text-sm font-semibold">Assets</span>
-          </a>
+          </a> */}
           <a
             className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
             href="#"
