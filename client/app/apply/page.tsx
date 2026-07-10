@@ -36,6 +36,9 @@ interface FormData {
   semester: string;
   tracks: string[];
   referenceCode: string;
+  createAccount: boolean;
+  password?: string;
+  confirmPassword?: string;
 }
 
 interface FormErrors {
@@ -49,6 +52,8 @@ interface FormErrors {
   department?: string;
   semester?: string;
   tracks?: string;
+  password?: string;
+  confirmPassword?: string;
 }
 
 function validate(data: FormData): FormErrors {
@@ -92,6 +97,20 @@ function validate(data: FormData): FormErrors {
   else if (data.tracks.length > 3)
     errors.tracks = "You can select up to 3 tracks only.";
 
+  if (data.createAccount) {
+    if (!data.password || !data.password.trim()) {
+      errors.password = "Password is required.";
+    } else if (data.password.trim().length < 6) {
+      errors.password = "Password must be at least 6 characters.";
+    }
+
+    if (!data.confirmPassword || !data.confirmPassword.trim()) {
+      errors.confirmPassword = "Confirm password is required.";
+    } else if (data.confirmPassword.trim() !== data.password?.trim()) {
+      errors.confirmPassword = "Passwords do not match.";
+    }
+  }
+
   return errors;
 }
 
@@ -108,6 +127,9 @@ export default function ApplyPage() {
     semester: "",
     tracks: [],
     referenceCode: "",
+    createAccount: true,
+    password: "",
+    confirmPassword: "",
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -173,6 +195,7 @@ export default function ApplyPage() {
       [
         "fullName", "fatherName", "cnic", "age", "whatsapp",
         "gmail", "universityName", "department", "semester", "tracks",
+        "password", "confirmPassword",
       ].map((k) => [k, true])
     );
     setTouched(allTouched);
@@ -203,6 +226,8 @@ export default function ApplyPage() {
           semester: Number(form.semester),
           tracks: form.tracks,
           referenceCode: form.referenceCode.trim() || null,
+          createAccount: form.createAccount,
+          password: form.createAccount ? form.password?.trim() : "",
         }),
       });
 
@@ -960,6 +985,81 @@ export default function ApplyPage() {
             </FieldGroup>
           </SectionCard>
 
+          {/* Section 5: Portal Account */}
+          <SectionCard icon="lock" title="Create Portal Login Account" subtitle="Create your credentials to access the portal once approved">
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+              <input
+                id="createAccount"
+                name="createAccount"
+                type="checkbox"
+                checked={form.createAccount}
+                onChange={(e) => setForm(prev => ({ ...prev, createAccount: e.target.checked }))}
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  cursor: "pointer",
+                }}
+              />
+              <label htmlFor="createAccount" style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", color: "#ffffff", fontWeight: 600, cursor: "pointer" }}>
+                Create a student login account for this portal
+              </label>
+            </div>
+
+            {form.createAccount && (
+              <>
+                <div style={{ marginBottom: "16px" }}>
+                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", color: "rgba(206,229,255,0.6)" }}>
+                    Username: <strong style={{ color: "#ffffff" }}>{form.gmail || "(Enter Gmail above)"}</strong>
+                  </span>
+                </div>
+                
+                <div className="form-grid-2">
+                  <FieldGroup label="Password" required error={errors.password}>
+                    <input
+                      id="password"
+                      name="password"
+                      type="password"
+                      placeholder="Min. 6 characters"
+                      value={form.password}
+                      onChange={handleChange}
+                      onBlur={() => handleBlur("password")}
+                      style={fieldStyle("password")}
+                      className="form-input"
+                    />
+                  </FieldGroup>
+
+                  <FieldGroup label="Confirm Password" required error={errors.confirmPassword}>
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type="confirmPassword"
+                      placeholder="Repeat password"
+                      value={form.confirmPassword}
+                      onChange={handleChange}
+                      onBlur={() => handleBlur("confirmPassword")}
+                      style={fieldStyle("confirmPassword")}
+                      className="form-input"
+                    />
+                  </FieldGroup>
+                </div>
+              </>
+            )}
+
+            <div
+              style={{
+                marginTop: "20px",
+                padding: "14px 16px",
+                background: "rgba(32,99,147,0.1)",
+                border: "1px solid rgba(32,99,147,0.25)",
+                borderRadius: "10px",
+              }}
+            >
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: "12px", color: "rgba(206,229,255,0.7)", margin: 0, lineHeight: 1.5 }}>
+                ℹ️ If you face any issues while creating your login account, please email us at <a href="mailto:info@falconswift.online" style={{ color: "#00a2ff", textDecoration: "underline" }}>info@falconswift.online</a>.
+              </p>
+            </div>
+          </SectionCard>
+
           {/* Submit */}
           <div style={{ marginTop: "8px" }}>
             <p
@@ -976,7 +1076,7 @@ export default function ApplyPage() {
               terms. Information cannot be changed after submission.
             </p>
 
-            {submitError && (
+             {submitError && (
               <div
                 style={{
                   display: "flex",
@@ -996,16 +1096,28 @@ export default function ApplyPage() {
                 >
                   error
                 </span>
-                <span
-                  style={{
-                    fontFamily: "Inter, sans-serif",
-                    fontSize: "14px",
-                    color: "#fca5a5",
-                    lineHeight: "1.5",
-                  }}
-                >
-                  {submitError}
-                </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <span
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontSize: "14px",
+                      color: "#fca5a5",
+                      lineHeight: "1.5",
+                    }}
+                  >
+                    {submitError}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "Inter, sans-serif",
+                      fontSize: "12px",
+                      color: "rgba(252,165,165,0.8)",
+                      lineHeight: "1.4",
+                    }}
+                  >
+                    If you face any issues while creating your login, please email us at <strong>info@falconswift.online</strong>.
+                  </span>
+                </div>
               </div>
             )}
 

@@ -605,10 +605,11 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/students', async (req, res) => {
   try {
     const query = `
-      SELECT s.*, u.email, a.phone 
+      SELECT s.*, u.email, COALESCE(a.phone, t.whatsapp) as phone 
       FROM students s 
       JOIN users u ON s.user_id = u.id 
       LEFT JOIN applicants a ON a.email = u.email 
+      LEFT JOIN training_applications t ON t.gmail = u.email
       ORDER BY s.created_at DESC
     `;
     const result = await pool.query(query);
@@ -633,23 +634,48 @@ app.post('/api/training-applications', async (req, res) => {
     department,
     semester,
     tracks,
-    referenceCode
+    referenceCode,
+    createAccount,
+    password
   } = req.body;
 
+  const client = await pool.connect();
+
   try {
+    await client.query('BEGIN');
+
     // 1. Check duplicates
-    const checkDup = await pool.query(
+    const checkDup = await client.query(
       "SELECT id FROM training_applications WHERE cnic = $1 OR gmail = $2",
       [cnic, gmail]
     );
     if (checkDup.rows.length > 0) {
+      client.release();
       return res.status(400).json({
         success: false,
         error: "An application with this CNIC or Gmail already exists."
       });
     }
 
-    // 2. Insert application
+    // 2. Optional user login account creation
+    if (createAccount && password) {
+      const checkUser = await client.query("SELECT id FROM users WHERE email = $1", [gmail]);
+      if (checkUser.rows.length > 0) {
+        client.release();
+        return res.status(400).json({
+          success: false,
+          error: "A portal account with this email address already exists. Please choose a different email or proceed without account creation."
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await client.query(
+        "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'student')",
+        [gmail, hashedPassword]
+      );
+    }
+
+    // 3. Insert application
     const query = `
       INSERT INTO training_applications (
         full_name, father_name, cnic, age, whatsapp, gmail, 
@@ -658,7 +684,7 @@ app.post('/api/training-applications', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending')
       RETURNING *
     `;
-    const result = await pool.query(query, [
+    const result = await client.query(query, [
       fullName,
       fatherName,
       cnic,
@@ -672,8 +698,13 @@ app.post('/api/training-applications', async (req, res) => {
       referenceCode
     ]);
 
+    await client.query('COMMIT');
+    client.release();
+
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
     console.error("Error inserting application:", err.message);
     res.status(500).json({ success: false, error: "Database error. Please try again." });
   }
@@ -707,98 +738,138 @@ app.get('/api/training-applications/count', async (req, res) => {
 app.post('/api/training-applications/:id/approve', async (req, res) => {
   const { id } = req.params;
   const { note } = req.body;
+  const client = await pool.connect();
 
   try {
-    // 1. Fetch the application using pg pool
-    const fetchRes = await pool.query(
+    await client.query('BEGIN');
+
+    // 1. Fetch the application
+    const fetchRes = await client.query(
       "SELECT * FROM training_applications WHERE id = $1",
       [id]
     );
     if (fetchRes.rows.length === 0) {
+      client.release();
       return res.status(404).json({ success: false, error: 'Application not found' });
     }
     const app_data = fetchRes.rows[0];
 
     // 2. Update status to 'approved'
-    await pool.query(
+    await client.query(
       "UPDATE training_applications SET status = 'approved', reviewed_at = NOW() WHERE id = $1",
       [id]
     );
 
-  // 3. Send acceptance email
-  const trackLabels: Record<string, string> = {
-    'fullstack-ai': 'Full Stack AI Engineer',
-    'devops': 'DevOps',
-    'app-dev': 'App Development',
-    'web-dev': 'Web Development',
-  };
-  const tracksHtml = (app_data.tracks || [])
-    .map((t: string) => `<span style="display:inline-block;padding:4px 12px;background:#e0f0ff;border-radius:20px;font-size:13px;font-weight:600;color:#1a5280;margin:3px;">${trackLabels[t] || t}</span>`)
-    .join('');
+    // 3. Check or Create User Account
+    let userRes = await client.query("SELECT id FROM users WHERE email = $1", [app_data.gmail]);
+    let userId;
+    if (userRes.rows.length > 0) {
+      userId = userRes.rows[0].id;
+    } else {
+      // Create user with default password (using whatsapp phone number as password)
+      const defaultPassword = app_data.whatsapp || 'FalconSwift123';
+      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+      const newUserRes = await client.query(
+        "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'student') RETURNING id",
+        [app_data.gmail, hashedPassword]
+      );
+      userId = newUserRes.rows[0].id;
+    }
 
-  const noteSection = note && note.trim()
-    ? `<div style="margin-top:20px;padding:16px;background:#f0f9ff;border-left:4px solid #206393;border-radius:8px;">
-         <p style="font-size:13px;font-weight:700;color:#206393;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.05em;">Note from Admin</p>
-         <p style="font-size:14px;color:#1e3a5f;margin:0;line-height:1.6;">${note.trim()}</p>
-       </div>`
-    : '';
+    // 4. Check or Create Student Registry (Shift/Enroll Student)
+    const studentRes = await client.query("SELECT id FROM students WHERE user_id = $1", [userId]);
+    if (studentRes.rows.length === 0) {
+      const enrollmentId = 'ENR-' + Date.now().toString().slice(-6) + '-' + app_data.id;
+      const programName = app_data.tracks && app_data.tracks.length > 0 ? app_data.tracks[0] : 'General';
+      const nameParts = app_data.full_name.trim().split(/\s+/);
+      const firstName = nameParts[0] || 'Student';
+      const lastName = nameParts.slice(1).join(' ') || 'User';
 
-  const emailHtml = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-    <body style="margin:0;padding:0;background:#f4f7fb;font-family:'Segoe UI',Arial,sans-serif;">
-      <div style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-        <!-- Header -->
-        <div style="background:linear-gradient(135deg,#206393 0%,#0a3d62 100%);padding:40px 40px 32px;text-align:center;">
-          <div style="width:64px;height:64px;background:rgba(255,255,255,0.15);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;">
-            <span style="font-size:32px;">🎉</span>
+      await client.query(
+        "INSERT INTO students (user_id, first_name, last_name, enrollment_id, program) VALUES ($1, $2, $3, $4, $5)",
+        [userId, firstName, lastName, enrollmentId, programName]
+      );
+    }
+
+    await client.query('COMMIT');
+    client.release();
+
+    // 5. Send acceptance email
+    const trackLabels: Record<string, string> = {
+      'fullstack-ai': 'Full Stack AI Engineer',
+      'devops': 'DevOps',
+      'app-dev': 'App Development',
+      'web-dev': 'Web Development',
+    };
+    const tracksHtml = (app_data.tracks || [])
+      .map((t: string) => `<span style="display:inline-block;padding:4px 12px;background:#e0f0ff;border-radius:20px;font-size:13px;font-weight:600;color:#1a5280;margin:3px;">${trackLabels[t] || t}</span>`)
+      .join('');
+
+    const noteSection = note && note.trim()
+      ? `<div style="margin-top:20px;padding:16px;background:#f0f9ff;border-left:4px solid #206393;border-radius:8px;">
+           <p style="font-size:13px;font-weight:700;color:#206393;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.05em;">Note from Admin</p>
+           <p style="font-size:14px;color:#1e3a5f;margin:0;line-height:1.6;">${note.trim()}</p>
+         </div>`
+      : '';
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+      <body style="margin:0;padding:0;background:#f4f7fb;font-family:'Segoe UI',Arial,sans-serif;">
+        <div style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+          <!-- Header -->
+          <div style="background:linear-gradient(135deg,#206393 0%,#0a3d62 100%);padding:40px 40px 32px;text-align:center;">
+            <div style="width:64px;height:64px;background:rgba(255,255,255,0.15);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;">
+              <span style="font-size:32px;">🎉</span>
+            </div>
+            <h1 style="color:#ffffff;font-size:26px;font-weight:800;margin:0 0 8px;letter-spacing:-0.5px;">Application Accepted!</h1>
+            <p style="color:rgba(255,255,255,0.75);font-size:15px;margin:0;">Falcon Swift Training & Internships</p>
           </div>
-          <h1 style="color:#ffffff;font-size:26px;font-weight:800;margin:0 0 8px;letter-spacing:-0.5px;">Application Accepted!</h1>
-          <p style="color:rgba(255,255,255,0.75);font-size:15px;margin:0;">Falcon Swift Training & Internships</p>
-        </div>
-        <!-- Body -->
-        <div style="padding:36px 40px;">
-          <p style="font-size:16px;color:#1e293b;margin:0 0 16px;">Dear <strong>${app_data.full_name}</strong>,</p>
-          <p style="font-size:15px;color:#475569;line-height:1.7;margin:0 0 20px;">
-            We are delighted to inform you that your application for <strong>Falcon Swift Training & Internships</strong> has been <strong style="color:#16a34a;">accepted</strong>. Congratulations on taking this important step in your career journey!
-          </p>
-          <div style="margin-bottom:20px;">
-            <p style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 10px;">Selected Tracks</p>
-            <div>${tracksHtml}</div>
+          <!-- Body -->
+          <div style="padding:36px 40px;">
+            <p style="font-size:16px;color:#1e293b;margin:0 0 16px;">Dear <strong>${app_data.full_name}</strong>,</p>
+            <p style="font-size:15px;color:#475569;line-height:1.7;margin:0 0 20px;">
+              We are delighted to inform you that your application for <strong>Falcon Swift Training & Internships</strong> has been <strong style="color:#16a34a;">accepted</strong>. Congratulations on taking this important step in your career journey!
+            </p>
+            <div style="margin-bottom:20px;">
+              <p style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 10px;">Selected Tracks</p>
+              <div>${tracksHtml}</div>
+            </div>
+            ${noteSection}
+            <div style="margin-top:24px;padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;">
+              <p style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 12px;">Your Details on File</p>
+              <table style="width:100%;font-size:14px;color:#1e293b;">
+                <tr><td style="padding:4px 0;color:#64748b;width:130px;">University</td><td><strong>${app_data.university_name}</strong></td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Department</td><td><strong>${app_data.department}</strong></td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">Semester</td><td><strong>${app_data.semester}</strong></td></tr>
+                <tr><td style="padding:4px 0;color:#64748b;">WhatsApp</td><td><strong>${app_data.whatsapp}</strong></td></tr>
+              </table>
+            </div>
+            <p style="font-size:15px;color:#475569;line-height:1.7;margin:24px 0 0;">
+              Our team will reach out to you on your WhatsApp number (<strong>${app_data.whatsapp}</strong>) with further details about the schedule and onboarding process.
+            </p>
           </div>
-          ${noteSection}
-          <div style="margin-top:24px;padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;">
-            <p style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 12px;">Your Details on File</p>
-            <table style="width:100%;font-size:14px;color:#1e293b;">
-              <tr><td style="padding:4px 0;color:#64748b;width:130px;">University</td><td><strong>${app_data.university_name}</strong></td></tr>
-              <tr><td style="padding:4px 0;color:#64748b;">Department</td><td><strong>${app_data.department}</strong></td></tr>
-              <tr><td style="padding:4px 0;color:#64748b;">Semester</td><td><strong>${app_data.semester}</strong></td></tr>
-              <tr><td style="padding:4px 0;color:#64748b;">WhatsApp</td><td><strong>${app_data.whatsapp}</strong></td></tr>
-            </table>
+          <!-- Footer -->
+          <div style="padding:24px 40px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+            <p style="font-size:13px;color:#94a3b8;margin:0;">© ${new Date().getFullYear()} Falcon Swift Training & Internships. All rights reserved.</p>
+            <p style="font-size:12px;color:#cbd5e1;margin:6px 0 0;">This email was sent from the admin portal. Please do not reply directly.</p>
           </div>
-          <p style="font-size:15px;color:#475569;line-height:1.7;margin:24px 0 0;">
-            Our team will reach out to you on your WhatsApp number (<strong>${app_data.whatsapp}</strong>) with further details about the schedule and onboarding process.
-          </p>
         </div>
-        <!-- Footer -->
-        <div style="padding:24px 40px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
-          <p style="font-size:13px;color:#94a3b8;margin:0;">© ${new Date().getFullYear()} Falcon Swift Training & Internships. All rights reserved.</p>
-          <p style="font-size:12px;color:#cbd5e1;margin:6px 0 0;">This email was sent from the admin portal. Please do not reply directly.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
+      </body>
+      </html>
+    `;
 
-  await sendEmail(
-    app_data.gmail,
-    '🎉 Application Accepted — Falcon Swift Training & Internships',
-    emailHtml
-  );
+    await sendEmail(
+      app_data.gmail,
+      '🎉 Application Accepted — Falcon Swift Training & Internships',
+      emailHtml
+    );
 
-  res.json({ success: true, message: 'Application approved and email sent.' });
+    res.json({ success: true, message: 'Application approved, user/student enrolled, and email sent.' });
   } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
     res.status(500).json({ success: false, error: err.message });
   }
 });
