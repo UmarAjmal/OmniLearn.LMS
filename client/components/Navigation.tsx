@@ -7,8 +7,15 @@ import { toast } from "react-toastify";
 
 export default function Navigation({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isTasksOpen, setIsTasksOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    if (pathname.startsWith("/tasks")) {
+      setIsTasksOpen(true);
+    }
+  }, [pathname]);
 
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -214,6 +221,57 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
             </span>
             <span className="font-body-md text-sm font-semibold">Students</span>
           </Link>
+          
+          {/* Tasks Dropdown */}
+          <div className="w-full">
+            <button
+              onClick={() => setIsTasksOpen(!isTasksOpen)}
+              className={`w-full px-4 py-3 flex items-center justify-between rounded-lg transition-all border-none bg-transparent cursor-pointer text-left ${
+                pathname.startsWith("/tasks")
+                  ? "bg-primary/5 text-primary"
+                  : "text-on-surface-variant hover:text-white hover:bg-white/10"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined" data-icon="assignment">
+                  assignment
+                </span>
+                <span className="font-body-md text-sm font-semibold">Tasks</span>
+              </div>
+              <span className={`material-symbols-outlined transition-transform duration-200 text-sm ${isTasksOpen ? "rotate-180" : ""}`}>
+                expand_more
+              </span>
+            </button>
+            
+            {isTasksOpen && (
+              <div className="pl-9 pr-2 mt-1 space-y-1">
+                <Link
+                  href="/tasks/new"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`px-3 py-2 flex items-center gap-2 rounded-lg transition-all text-xs font-semibold uppercase tracking-wider block ${
+                    pathname === "/tasks/new"
+                      ? "text-primary bg-primary/10 border-l-2 border-primary"
+                      : "text-on-surface-variant/80 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">add_task</span>
+                  <span>New Task</span>
+                </Link>
+                <Link
+                  href="/tasks/completed"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`px-3 py-2 flex items-center gap-2 rounded-lg transition-all text-xs font-semibold uppercase tracking-wider block ${
+                    pathname === "/tasks/completed"
+                      ? "text-primary bg-primary/10 border-l-2 border-primary"
+                      : "text-on-surface-variant/80 hover:text-white hover:bg-white/5"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">task_alt</span>
+                  <span>Complete Task</span>
+                </Link>
+              </div>
+            )}
+          </div>
           <a
             className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
             href="#"
