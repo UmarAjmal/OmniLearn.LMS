@@ -681,51 +681,49 @@ app.post('/api/training-applications', async (req, res) => {
 
 // GET all pending training applications
 app.get('/api/training-applications', async (req, res) => {
-  if (!supabase) return res.status(500).json({ success: false, error: 'Supabase not configured' });
-  const { data, error } = await supabase
-    .from('training_applications')
-    .select('*')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
-  if (error) return res.status(500).json({ success: false, error: error.message });
-  res.json({ success: true, data });
+  try {
+    const result = await pool.query(
+      "SELECT * FROM training_applications WHERE status = 'pending' ORDER BY created_at DESC"
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // GET count of pending training applications (for badge)
 app.get('/api/training-applications/count', async (req, res) => {
-  if (!supabase) return res.status(500).json({ success: false, error: 'Supabase not configured' });
-  const { count, error } = await supabase
-    .from('training_applications')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'pending');
-  if (error) return res.status(500).json({ success: false, error: error.message });
-  res.json({ success: true, count: count || 0 });
+  try {
+    const result = await pool.query(
+      "SELECT COUNT(*) as count FROM training_applications WHERE status = 'pending'"
+    );
+    res.json({ success: true, count: parseInt(result.rows[0].count || '0') });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // POST approve a training application + send acceptance email
 app.post('/api/training-applications/:id/approve', async (req, res) => {
-  if (!supabase) return res.status(500).json({ success: false, error: 'Supabase not configured' });
   const { id } = req.params;
   const { note } = req.body;
 
-  // 1. Fetch the application
-  const { data: app_data, error: fetchErr } = await supabase
-    .from('training_applications')
-    .select('*')
-    .eq('id', id)
-    .single();
+  try {
+    // 1. Fetch the application using pg pool
+    const fetchRes = await pool.query(
+      "SELECT * FROM training_applications WHERE id = $1",
+      [id]
+    );
+    if (fetchRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Application not found' });
+    }
+    const app_data = fetchRes.rows[0];
 
-  if (fetchErr || !app_data) {
-    return res.status(404).json({ success: false, error: 'Application not found' });
-  }
-
-  // 2. Update status to 'approved'
-  const { error: updateErr } = await supabase
-    .from('training_applications')
-    .update({ status: 'approved', reviewed_at: new Date().toISOString() })
-    .eq('id', id);
-
-  if (updateErr) return res.status(500).json({ success: false, error: updateErr.message });
+    // 2. Update status to 'approved'
+    await pool.query(
+      "UPDATE training_applications SET status = 'approved', reviewed_at = NOW() WHERE id = $1",
+      [id]
+    );
 
   // 3. Send acceptance email
   const trackLabels: Record<string, string> = {
@@ -800,83 +798,95 @@ app.post('/api/training-applications/:id/approve', async (req, res) => {
   );
 
   res.json({ success: true, message: 'Application approved and email sent.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // POST reject a training application + send rejection email
 app.post('/api/training-applications/:id/reject', async (req, res) => {
-  if (!supabase) return res.status(500).json({ success: false, error: 'Supabase not configured' });
   const { id } = req.params;
+  const { note } = req.body;
 
-  // 1. Fetch the application
-  const { data: app_data, error: fetchErr } = await supabase
-    .from('training_applications')
-    .select('*')
-    .eq('id', id)
-    .single();
+  try {
+    // 1. Fetch the application using pg pool
+    const fetchRes = await pool.query(
+      "SELECT * FROM training_applications WHERE id = $1",
+      [id]
+    );
+    if (fetchRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Application not found' });
+    }
+    const app_data = fetchRes.rows[0];
 
-  if (fetchErr || !app_data) {
-    return res.status(404).json({ success: false, error: 'Application not found' });
-  }
+    // 2. Update status to 'rejected'
+    await pool.query(
+      "UPDATE training_applications SET status = 'rejected', reviewed_at = NOW() WHERE id = $1",
+      [id]
+    );
 
-  // 2. Update status to 'rejected'
-  const { error: updateErr } = await supabase
-    .from('training_applications')
-    .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
-    .eq('id', id);
+    // 3. Send rejection email
+    const noteSection = note && note.trim()
+      ? `<div style="margin-top:20px;padding:16px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:8px;">
+           <p style="font-size:13px;font-weight:700;color:#dc2626;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.05em;">Note from Admin</p>
+           <p style="font-size:14px;color:#991b1b;margin:0;line-height:1.6;">${note.trim()}</p>
+         </div>`
+      : '';
 
-  if (updateErr) return res.status(500).json({ success: false, error: updateErr.message });
-
-  // 3. Send rejection email
-  const emailHtml = `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-    <body style="margin:0;padding:0;background:#f4f7fb;font-family:'Segoe UI',Arial,sans-serif;">
-      <div style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-        <!-- Header -->
-        <div style="background:linear-gradient(135deg,#334155 0%,#1e293b 100%);padding:40px 40px 32px;text-align:center;">
-          <div style="width:64px;height:64px;background:rgba(255,255,255,0.1);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;">
-            <span style="font-size:32px;">📋</span>
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+      <body style="margin:0;padding:0;background:#f4f7fb;font-family:'Segoe UI',Arial,sans-serif;">
+        <div style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+          <!-- Header -->
+          <div style="background:linear-gradient(135deg,#334155 0%,#1e293b 100%);padding:40px 40px 32px;text-align:center;">
+            <div style="width:64px;height:64px;background:rgba(255,255,255,0.1);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;">
+              <span style="font-size:32px;">📋</span>
+            </div>
+            <h1 style="color:#ffffff;font-size:26px;font-weight:800;margin:0 0 8px;letter-spacing:-0.5px;">Application Status Update</h1>
+            <p style="color:rgba(255,255,255,0.65);font-size:15px;margin:0;">Falcon Swift Training & Internships</p>
           </div>
-          <h1 style="color:#ffffff;font-size:26px;font-weight:800;margin:0 0 8px;letter-spacing:-0.5px;">Application Status Update</h1>
-          <p style="color:rgba(255,255,255,0.65);font-size:15px;margin:0;">Falcon Swift Training & Internships</p>
-        </div>
-        <!-- Body -->
-        <div style="padding:36px 40px;">
-          <p style="font-size:16px;color:#1e293b;margin:0 0 16px;">Dear <strong>${app_data.full_name}</strong>,</p>
-          <p style="font-size:15px;color:#475569;line-height:1.7;margin:0 0 20px;">
-            Thank you sincerely for your interest in <strong>Falcon Swift Training & Internships</strong> and for taking the time to submit your application.
-          </p>
-          <p style="font-size:15px;color:#475569;line-height:1.7;margin:0 0 20px;">
-            After careful review of all applications received, we regret to inform you that we are <strong style="color:#dc2626;">unable to offer you a position</strong> in the current training batch. This was a highly competitive process, and we encourage you not to be discouraged.
-          </p>
-          <div style="padding:20px;background:#fff7ed;border-left:4px solid #f97316;border-radius:8px;margin-bottom:20px;">
-            <p style="font-size:14px;color:#9a3412;font-weight:600;margin:0 0 6px;">Keep Growing! 💪</p>
-            <p style="font-size:14px;color:#7c2d12;margin:0;line-height:1.6;">
-              We invite you to apply again in our next batch. Continue building your skills and stay connected with us for future opportunities.
+          <!-- Body -->
+          <div style="padding:36px 40px;">
+            <p style="font-size:16px;color:#1e293b;margin:0 0 16px;">Dear <strong>${app_data.full_name}</strong>,</p>
+            <p style="font-size:15px;color:#475569;line-height:1.7;margin:0 0 20px;">
+              Thank you sincerely for your interest in <strong>Falcon Swift Training & Internships</strong> and for taking the time to submit your application.
+            </p>
+            <p style="font-size:15px;color:#475569;line-height:1.7;margin:0 0 20px;">
+              After careful review of all applications received, we regret to inform you that we are <strong style="color:#dc2626;">unable to offer you a position</strong> in the current training batch. This was a highly competitive process, and we encourage you not to be discouraged.
+            </p>
+            ${noteSection}
+            <div style="padding:20px;background:#fff7ed;border-left:4px solid #f97316;border-radius:8px;margin-bottom:20px;margin-top:20px;">
+              <p style="font-size:14px;color:#9a3412;font-weight:600;margin:0 0 6px;">Keep Growing! 💪</p>
+              <p style="font-size:14px;color:#7c2d12;margin:0;line-height:1.6;">
+                We invite you to apply again in our next batch. Continue building your skills and stay connected with us for future opportunities.
+              </p>
+            </div>
+            <p style="font-size:15px;color:#475569;line-height:1.7;margin:0;">
+              We wish you the very best in your academic and professional journey. Thank you once again for your interest in Falcon Swift.
             </p>
           </div>
-          <p style="font-size:15px;color:#475569;line-height:1.7;margin:0;">
-            We wish you the very best in your academic and professional journey. Thank you once again for your interest in Falcon Swift.
-          </p>
+          <!-- Footer -->
+          <div style="padding:24px 40px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+            <p style="font-size:13px;color:#94a3b8;margin:0;">© ${new Date().getFullYear()} Falcon Swift Training & Internships. All rights reserved.</p>
+            <p style="font-size:12px;color:#cbd5e1;margin:6px 0 0;">This email was sent from the admin portal. Please do not reply directly.</p>
+          </div>
         </div>
-        <!-- Footer -->
-        <div style="padding:24px 40px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
-          <p style="font-size:13px;color:#94a3b8;margin:0;">© ${new Date().getFullYear()} Falcon Swift Training & Internships. All rights reserved.</p>
-          <p style="font-size:12px;color:#cbd5e1;margin:6px 0 0;">This email was sent from the admin portal. Please do not reply directly.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
+      </body>
+      </html>
+    `;
 
-  await sendEmail(
-    app_data.gmail,
-    'Application Status — Falcon Swift Training & Internships',
-    emailHtml
-  );
+    await sendEmail(
+      app_data.gmail,
+      'Application Status — Falcon Swift Training & Internships',
+      emailHtml
+    );
 
-  res.json({ success: true, message: 'Application rejected and email sent.' });
+    res.json({ success: true, message: 'Application rejected and email sent.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.listen(PORT, async () => {
