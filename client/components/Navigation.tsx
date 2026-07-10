@@ -193,7 +193,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
             </span>
             <span className="font-body-md text-sm font-semibold">Dashboard</span>
           </Link>
-          <Link
+          {/* <Link
             href="/courses"
             onClick={() => setIsMobileMenuOpen(false)}
             className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
@@ -202,11 +202,11 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
                 : "text-on-surface-variant hover:text-white hover:bg-white/10"
             }`}
           >
-            {/* <span className="material-symbols-outlined" data-icon="menu_book">
+            <span className="material-symbols-outlined" data-icon="menu_book">
               menu_book
-            </span> */}
+            </span>
             <span className="font-body-md text-sm font-semibold">Courses</span>
-          </Link>
+          </Link> */}
           <Link
             href="/students"
             onClick={() => setIsMobileMenuOpen(false)}
