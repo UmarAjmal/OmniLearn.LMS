@@ -17,7 +17,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
     const auth = localStorage.getItem("lms_auth") === "true";
     setIsAuthenticated(auth);
 
-    const isPublicRoute = pathname === "/" || pathname.startsWith("/signup");
+    const isPublicRoute = pathname === "/" || pathname.startsWith("/signup") || pathname.startsWith("/apply");
 
     if (isPublicRoute) {
       if (auth && pathname === "/") {
@@ -61,7 +61,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
     );
   }
 
-  const isPublicRoute = pathname === "/" || pathname.startsWith("/signup");
+  const isPublicRoute = pathname === "/" || pathname.startsWith("/signup") || pathname.startsWith("/apply");
   if (isPublicRoute) {
     return <>{children}</>;
   }

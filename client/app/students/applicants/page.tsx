@@ -1,221 +1,629 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-function ApplicantCard({ applicant, onApprove, onReject }: { applicant: any, onApprove: (id: string) => void, onReject: (id: string) => void }) {
-  const [expanded, setExpanded] = useState(false);
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+
+const TRACK_LABELS: Record<string, string> = {
+  "fullstack-ai": "Full Stack AI Engineer",
+  "devops": "DevOps",
+  "app-dev": "App Development",
+  "web-dev": "Web Development",
+};
+
+const TRACK_ICONS: Record<string, string> = {
+  "fullstack-ai": "smart_toy",
+  "devops": "cloud_sync",
+  "app-dev": "phone_android",
+  "web-dev": "code",
+};
+
+interface TrainingApplication {
+  id: string;
+  full_name: string;
+  father_name: string;
+  cnic: string;
+  age: number;
+  whatsapp: string;
+  gmail: string;
+  university_name: string;
+  department: string;
+  semester: number;
+  tracks: string[];
+  reference_code: string | null;
+  status: string;
+  created_at: string;
+}
+
+function ApproveWithNoteModal({
+  applicant,
+  onClose,
+  onConfirm,
+}: {
+  applicant: TrainingApplication;
+  onClose: () => void;
+  onConfirm: (note: string) => void;
+}) {
+  const [note, setNote] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    await onConfirm(note);
+    setIsLoading(false);
+  };
 
   return (
-    <div className={`student-glass-panel p-8 rounded-lg transition-all group border border-white/5 inner-glow ${expanded ? 'ring-1 ring-primary/30' : ''} hover:shadow-[0_0_40px_rgba(252,163,17,0.1)]`}>
-      <div className="flex justify-between items-start">
-        <div className="flex flex-col sm:flex-row gap-6 sm:items-center">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/20 shrink-0 bg-primary/10 flex items-center justify-center">
-            <span className="material-symbols-outlined text-3xl text-primary">person</span>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0,0,0,0.7)",
+        backdropFilter: "blur(8px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        padding: "24px",
+        animation: "fadeIn 0.2s ease",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          backgroundColor: "rgba(20,33,61,0.95)",
+          border: "1px solid rgba(32,99,147,0.4)",
+          borderRadius: "20px",
+          padding: "32px",
+          maxWidth: "520px",
+          width: "100%",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+          animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px" }}>
+          <div
+            style={{
+              width: "44px",
+              height: "44px",
+              borderRadius: "12px",
+              background: "linear-gradient(135deg, #206393, #00a2ff)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: "22px", color: "#fff" }}>
+              edit_note
+            </span>
           </div>
           <div>
-            <h3 className="font-bold text-2xl text-white tracking-tight">{applicant.first_name} {applicant.last_name}</h3>
-            <p className="text-on-surface-variant font-semibold tracking-wider text-sm">{applicant.program}</p>
+            <h3 style={{ fontFamily: "Inter, sans-serif", fontSize: "18px", fontWeight: 700, color: "#fff", margin: 0 }}>
+              Approve with Note
+            </h3>
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", color: "rgba(206,229,255,0.5)", margin: "2px 0 0" }}>
+              For: {applicant.full_name}
+            </p>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-4">
-          <div className={`px-4 py-1.5 rounded-full border text-[11px] font-bold uppercase tracking-widest bg-white/5 border-white/10 text-on-surface-variant`}>
-            New Application
-          </div>
-          <button 
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 transition-all text-on-surface-variant hover:text-primary"
-            onClick={() => setExpanded(!expanded)}
+
+        <div style={{ marginBottom: "20px" }}>
+          <label style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", fontWeight: 600, color: "rgba(206,229,255,0.8)", display: "block", marginBottom: "8px" }}>
+            Approval Note (Optional)
+          </label>
+          <textarea
+            placeholder="e.g. Please bring your original documents on Day 1. Training starts 15th July..."
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={4}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              background: "rgba(255,255,255,0.05)",
+              border: "1.5px solid rgba(32,99,147,0.3)",
+              borderRadius: "10px",
+              color: "#fff",
+              fontSize: "14px",
+              fontFamily: "Inter, sans-serif",
+              outline: "none",
+              resize: "vertical",
+              boxSizing: "border-box",
+              transition: "border-color 0.2s",
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: "10px 24px",
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: "8px",
+              color: "rgba(206,229,255,0.7)",
+              fontFamily: "Inter, sans-serif",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
           >
-            <span className="material-symbols-outlined transition-transform duration-300" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isLoading}
+            style={{
+              padding: "10px 24px",
+              background: isLoading ? "rgba(32,99,147,0.4)" : "linear-gradient(135deg, #206393, #00a2ff)",
+              border: "none",
+              borderRadius: "8px",
+              color: "#fff",
+              fontFamily: "Inter, sans-serif",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: isLoading ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            {isLoading && (
+              <span className="material-symbols-outlined" style={{ fontSize: "16px", animation: "spin 1s linear infinite" }}>
+                progress_activity
+              </span>
+            )}
+            Approve & Send Email
+          </button>
+        </div>
+      </div>
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+}
+
+function ApplicantCard({
+  applicant,
+  onApprove,
+  onApproveWithNote,
+  onReject,
+}: {
+  applicant: TrainingApplication;
+  onApprove: (id: string) => void;
+  onApproveWithNote: (app: TrainingApplication) => void;
+  onReject: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    const hrs = Math.floor(mins / 60);
+    const days = Math.floor(hrs / 24);
+    if (days > 0) return `${days}d ago`;
+    if (hrs > 0) return `${hrs}h ago`;
+    if (mins > 0) return `${mins}m ago`;
+    return "Just now";
+  };
+
+  const handleApprove = async () => {
+    setActionLoading("approve");
+    await onApprove(applicant.id);
+    setActionLoading(null);
+  };
+
+  const handleReject = async () => {
+    setActionLoading("reject");
+    await onReject(applicant.id);
+    setActionLoading(null);
+  };
+
+  return (
+    <div
+      style={{
+        background: "rgba(20,33,61,0.7)",
+        backdropFilter: "blur(25px)",
+        border: expanded ? "1px solid rgba(32,99,147,0.45)" : "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "16px",
+        padding: "24px",
+        transition: "all 0.3s ease",
+        boxShadow: expanded ? "0 8px 40px rgba(32,99,147,0.2)" : "0 2px 16px rgba(0,0,0,0.3)",
+      }}
+    >
+      {/* Card Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" }}>
+        <div style={{ display: "flex", gap: "16px", alignItems: "center", flex: 1, flexWrap: "wrap" }}>
+          {/* Avatar */}
+          <div
+            style={{
+              width: "56px",
+              height: "56px",
+              borderRadius: "14px",
+              background: "linear-gradient(135deg, rgba(32,99,147,0.4), rgba(0,162,255,0.2))",
+              border: "1px solid rgba(32,99,147,0.3)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: "28px", color: "#cee5ff" }}>
+              person
+            </span>
+          </div>
+
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <h3 style={{ fontFamily: "Inter, sans-serif", fontSize: "18px", fontWeight: 700, color: "#fff", margin: 0 }}>
+                {applicant.full_name}
+              </h3>
+              <span
+                style={{
+                  padding: "3px 10px",
+                  borderRadius: "100px",
+                  background: "rgba(251,191,36,0.1)",
+                  border: "1px solid rgba(251,191,36,0.25)",
+                  color: "#fbbf24",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  fontFamily: "Inter, sans-serif",
+                }}
+              >
+                ● Pending
+              </span>
+            </div>
+            <p style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", color: "rgba(206,229,255,0.5)", margin: "4px 0 0" }}>
+              {applicant.university_name} · {applicant.department} · Sem {applicant.semester}
+            </p>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
+              {applicant.tracks.map((t) => (
+                <span
+                  key={t}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    padding: "3px 10px",
+                    background: "rgba(32,99,147,0.2)",
+                    border: "1px solid rgba(32,99,147,0.35)",
+                    borderRadius: "100px",
+                    fontFamily: "Inter, sans-serif",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: "#cee5ff",
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>{TRACK_ICONS[t] || "code"}</span>
+                  {TRACK_LABELS[t] || t}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          <span style={{ fontFamily: "Inter, sans-serif", fontSize: "11px", color: "rgba(206,229,255,0.35)" }}>
+            {timeAgo(applicant.created_at)}
+          </span>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: "rgba(206,229,255,0.6)",
+              transition: "all 0.2s",
+            }}
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: "20px", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s ease" }}
+            >
               expand_more
             </span>
           </button>
         </div>
       </div>
 
-      {/* Details Section */}
-      <div className={`expanded-content ${expanded ? 'active' : ''}`}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-8 border-t border-white/5">
-          {/* Personal & Academic Info */}
-          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 block mb-1">Full Name</label>
-                <p className="text-base text-white">{applicant.first_name} {applicant.last_name}</p>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 block mb-1">Department/Program</label>
-                <p className="text-base text-white">{applicant.program}</p>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 block mb-1">Academic Background</label>
-                <p className="text-base text-white">{applicant.academic_background}</p>
-              </div>
-            </div>
-            <div className="space-y-6">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 block mb-1">Email Address</label>
-                <p className="text-base text-white">{applicant.email}</p>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 block mb-1">Contact Number</label>
-                <p className="text-base text-white">{applicant.phone}</p>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60 block mb-1">Course Interest</label>
-                <p className="text-sm leading-relaxed text-white">
-                  {applicant.course_interest || "N/A"}
+      {/* Expanded Details */}
+      {expanded && (
+        <div style={{ marginTop: "24px", paddingTop: "24px", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "20px", marginBottom: "28px" }}>
+            {[
+              { label: "Father's Name", value: applicant.father_name, icon: "family_restroom" },
+              { label: "CNIC", value: applicant.cnic, icon: "badge" },
+              { label: "Age", value: `${applicant.age} years`, icon: "cake" },
+              { label: "WhatsApp", value: applicant.whatsapp, icon: "smartphone" },
+              { label: "Gmail", value: applicant.gmail, icon: "mail" },
+              { label: "Reference Code", value: applicant.reference_code || "None", icon: "confirmation_number" },
+            ].map(({ label, value, icon }) => (
+              <div key={label}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: "14px", color: "rgba(206,229,255,0.35)" }}>
+                    {icon}
+                  </span>
+                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(206,229,255,0.35)" }}>
+                    {label}
+                  </span>
+                </div>
+                <p style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", color: "#fff", margin: 0, wordBreak: "break-all" }}>
+                  {value}
                 </p>
               </div>
-            </div>
+            ))}
           </div>
 
-          {/* Document Preview */}
-          <div className="student-glass-panel p-6 rounded-xl bg-white/5 border border-white/10 flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h4 className="font-semibold text-sm tracking-wider text-white">Curriculum Vitae</h4>
-              <button className="text-primary flex items-center gap-1 hover:brightness-125 transition-all">
-                <span className="material-symbols-outlined text-sm">download</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest">Download</span>
-              </button>
-            </div>
-            <div className="flex-1 bg-black/40 rounded-lg border border-white/5 flex flex-col items-center justify-center p-8 text-center group/doc relative overflow-hidden h-48">
-              <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3">description</span>
-              <p className="text-[10px] font-semibold text-on-surface-variant/50 uppercase tracking-widest">Resume.pdf</p>
-              
-              <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover/doc:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px] cursor-pointer">
-                <span className="font-semibold tracking-wider text-sm text-primary">Preview Document</span>
-              </div>
-            </div>
+          {/* Action Buttons */}
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button
+              onClick={handleReject}
+              disabled={!!actionLoading}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "8px",
+                border: "1px solid rgba(239,68,68,0.3)",
+                background: "rgba(239,68,68,0.08)",
+                color: "#f87171",
+                fontFamily: "Inter, sans-serif",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: actionLoading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                transition: "all 0.2s",
+                opacity: actionLoading === "reject" ? 0.6 : 1,
+              }}
+            >
+              {actionLoading === "reject" ? (
+                <span className="material-symbols-outlined" style={{ fontSize: "16px", animation: "spin 1s linear infinite" }}>progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>cancel</span>
+              )}
+              Reject
+            </button>
+
+            <button
+              onClick={() => onApproveWithNote(applicant)}
+              disabled={!!actionLoading}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "8px",
+                border: "1px solid rgba(32,99,147,0.4)",
+                background: "rgba(32,99,147,0.15)",
+                color: "#93c5fd",
+                fontFamily: "Inter, sans-serif",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: actionLoading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                transition: "all 0.2s",
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>edit_note</span>
+              Approve with Note
+            </button>
+
+            <button
+              onClick={handleApprove}
+              disabled={!!actionLoading}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "8px",
+                border: "none",
+                background: actionLoading === "approve" ? "rgba(34,197,94,0.4)" : "linear-gradient(135deg, #15803d, #22c55e)",
+                color: "#fff",
+                fontFamily: "Inter, sans-serif",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: actionLoading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                boxShadow: "0 4px 16px rgba(34,197,94,0.3)",
+                transition: "all 0.2s",
+              }}
+            >
+              {actionLoading === "approve" ? (
+                <span className="material-symbols-outlined" style={{ fontSize: "16px", animation: "spin 1s linear infinite" }}>progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>check_circle</span>
+              )}
+              Approve
+            </button>
           </div>
         </div>
-
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row justify-end gap-4 mt-12 pt-8 border-t border-white/5">
-          <button 
-            onClick={() => onReject(applicant.id)}
-            className="px-8 py-3 rounded-lg font-bold text-sm tracking-widest uppercase text-red-500 hover:bg-red-500/10 border border-red-500/20 transition-all active:scale-95"
-          >
-            Reject Application
-          </button>
-          <button 
-            onClick={() => onApprove(applicant.id)}
-            className="px-8 py-3 rounded-lg font-bold text-sm tracking-widest uppercase bg-primary text-black hover:brightness-110 shadow-[0_10px_20px_rgba(252,163,17,0.2)] transition-all active:scale-95"
-          >
-            Accept Applicant
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
-
-export default function ApplicantsPage() {
+export default function TrainingApplicantsPage() {
   const router = useRouter();
-  const [applicants, setApplicants] = useState<any[]>([]);
+  const [applications, setApplications] = useState<TrainingApplication[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [noteModalApp, setNoteModalApp] = useState<TrainingApplication | null>(null);
 
-  useEffect(() => {
-    fetch(`${API_BASE_URL}/api/applicants`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setApplicants(data.data);
-        }
-      })
-      .catch((err) => console.error("Failed to fetch applicants:", err));
+  const fetchApplications = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/training-applications`);
+      const data = await res.json();
+      if (data.success) setApplications(data.data);
+    } catch (err) {
+      console.error("Failed to fetch training applications:", err);
+      toast.error("Failed to load applications.");
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const handleApprove = async (id: string) => {
+  useEffect(() => {
+    fetchApplications();
+    // Poll every 30 seconds
+    const interval = setInterval(fetchApplications, 30000);
+    return () => clearInterval(interval);
+  }, [fetchApplications]);
+
+  const handleApprove = async (id: string, note?: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/applicants/${id}/approve`, {
-        method: 'POST'
+      const res = await fetch(`${API_BASE_URL}/api/training-applications/${id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: note || "" }),
       });
       const data = await res.json();
       if (data.success) {
-        toast.success("Applicant approved! Student Account created.");
-        setApplicants(applicants.filter(app => app.id !== id));
+        toast.success("✅ Application approved! Confirmation email sent.");
+        setApplications((prev) => prev.filter((a) => a.id !== id));
+        setNoteModalApp(null);
       } else {
-        toast.error("Failed to approve applicant. " + data.error);
+        toast.error("Failed to approve: " + data.error);
       }
-    } catch (err) {
-      toast.error("Error connecting to server.");
+    } catch {
+      toast.error("Network error. Please try again.");
     }
   };
 
   const handleReject = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/applicants/${id}/reject`, {
-        method: 'POST'
+      const res = await fetch(`${API_BASE_URL}/api/training-applications/${id}/reject`, {
+        method: "POST",
       });
       const data = await res.json();
       if (data.success) {
-        toast.info("Applicant rejected.");
-        setApplicants(applicants.filter(app => app.id !== id));
+        toast.info("❌ Application rejected. Rejection email sent.");
+        setApplications((prev) => prev.filter((a) => a.id !== id));
       } else {
-        toast.error("Failed to reject applicant.");
+        toast.error("Failed to reject: " + data.error);
       }
-    } catch (err) {
-      toast.error("Error connecting to server.");
+    } catch {
+      toast.error("Network error. Please try again.");
     }
   };
 
   return (
     <div className="relative">
-      <style dangerouslySetInnerHTML={{__html: `
-        .student-glass-panel {
-            background: rgba(20, 33, 61, 0.7);
-            backdrop-filter: blur(25px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 20px 50px rgba(4, 18, 46, 0.4);
-        }
-        .inner-glow {
-            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
-        }
-        .expanded-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.5s ease-in-out, opacity 0.3s ease;
-            opacity: 0;
-        }
-        .expanded-content.active {
-            max-height: 2000px;
-            opacity: 1;
-            margin-top: 1.5rem;
-        }
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
       `}} />
 
-      <div className="py-2 md:py-8 flex-1 animate-fade-in relative z-10 w-full max-w-6xl mx-auto">
-        {/* Page Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-6">
+      <div className="p-2 md:p-8 flex-1 animate-fade-in relative z-10 w-full">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
           <div>
-            <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-2">New Applicants</h2>
-            <p className="text-on-surface-variant font-light text-lg">Review and manage recent enrollment requests for the Fall 2024 semester.</p>
+            <div className="flex items-center gap-3 mb-2">
+              <button
+                onClick={() => router.push("/students")}
+                className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-on-surface-variant hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">arrow_back</span>
+              </button>
+              <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
+                Training Applications
+              </h2>
+            </div>
+            <p className="text-on-surface-variant font-light text-base mt-1 ml-12">
+              Review FalconSwift Training & Internship applications — approve or reject with email notification.
+            </p>
           </div>
+
           <div className="flex gap-4">
-            <div className="student-glass-panel px-6 py-3 rounded-xl flex items-center gap-3 border border-white/10">
-              <span className="text-primary font-bold text-3xl leading-none">{applicants.length}</span>
-              <span className="font-bold text-sm text-on-surface-variant uppercase tracking-widest">Pending<br/>Reviews</span>
+            <div
+              style={{
+                background: "rgba(20,33,61,0.7)",
+                backdropFilter: "blur(25px)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                boxShadow: "0 20px 50px rgba(4,18,46,0.4)",
+              }}
+              className="px-6 py-3 rounded-xl flex items-center gap-3"
+            >
+              <span className="text-primary font-bold text-3xl leading-none">{applications.length}</span>
+              <span className="font-bold text-sm text-on-surface-variant uppercase tracking-widest">
+                Pending<br />Reviews
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Applicants Grid/List */}
-        <div className="space-y-6">
-          {applicants.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-on-surface-variant text-lg">No pending applicants at the moment.</p>
+        {/* Applications List */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {isLoading ? (
+            <div className="text-center py-20">
+              <div className="w-10 h-10 rounded-full border-2 border-primary/20 border-t-primary animate-spin mx-auto mb-4" />
+              <p className="text-on-surface-variant text-sm font-light">Loading training applications...</p>
+            </div>
+          ) : applications.length === 0 ? (
+            <div
+              style={{
+                background: "rgba(20,33,61,0.5)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: "16px",
+                padding: "64px 24px",
+                textAlign: "center",
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: "48px", color: "rgba(206,229,255,0.2)", display: "block", marginBottom: "16px" }}>
+                inbox
+              </span>
+              <h3 style={{ fontFamily: "Inter, sans-serif", fontSize: "20px", fontWeight: 700, color: "rgba(206,229,255,0.5)", margin: "0 0 8px" }}>
+                No Pending Applications
+              </h3>
+              <p style={{ fontFamily: "Inter, sans-serif", fontSize: "14px", color: "rgba(206,229,255,0.3)", margin: 0 }}>
+                All caught up! New applications will appear here automatically.
+              </p>
             </div>
           ) : (
-            applicants.map((app, i) => (
-              <ApplicantCard key={app.id} applicant={app} onApprove={handleApprove} onReject={handleReject} />
+            applications.map((app) => (
+              <ApplicantCard
+                key={app.id}
+                applicant={app}
+                onApprove={handleApprove}
+                onApproveWithNote={setNoteModalApp}
+                onReject={handleReject}
+              />
             ))
           )}
         </div>
       </div>
+
+      {/* Approve with Note Modal */}
+      {noteModalApp && (
+        <ApproveWithNoteModal
+          applicant={noteModalApp}
+          onClose={() => setNoteModalApp(null)}
+          onConfirm={(note) => handleApprove(noteModalApp.id, note)}
+        />
+      )}
+
+      {/* Background decorations */}
+      <div className="fixed bottom-[-100px] right-[-100px] w-[500px] h-[500px] bg-primary/10 blur-[150px] rounded-full pointer-events-none -z-10" />
+      <div className="fixed top-[-100px] left-[-100px] w-[500px] h-[500px] bg-blue-500/10 blur-[150px] rounded-full pointer-events-none -z-10" />
     </div>
   );
 }

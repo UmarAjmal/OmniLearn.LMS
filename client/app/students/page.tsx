@@ -26,6 +26,7 @@ export default function StudentsPage() {
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [availableCourses, setAvailableCourses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingApplicantsCount, setPendingApplicantsCount] = useState(0);
 
   // Filters State
   const [courseFilter, setCourseFilter] = useState("");
@@ -49,6 +50,13 @@ export default function StudentsPage() {
         if (coursesJson.success) {
           setAvailableCourses(coursesJson.data);
         }
+
+        // 3. Fetch pending training applications count
+        const appsRes = await fetch(`${API_BASE_URL}/api/training-applications/count`);
+        const appsJson = await appsRes.json();
+        if (appsJson.success) {
+          setPendingApplicantsCount(appsJson.count);
+        }
       } catch (err) {
         console.error("Failed to fetch data:", err);
       } finally {
@@ -56,6 +64,14 @@ export default function StudentsPage() {
       }
     };
     fetchData();
+    // Poll every 30 seconds for new applications
+    const interval = setInterval(() => {
+      fetch(`${API_BASE_URL}/api/training-applications/count`)
+        .then(r => r.json())
+        .then(d => { if (d.success) setPendingApplicantsCount(d.count); })
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Stable deterministic dynamic student mock parameters based on ID
@@ -242,10 +258,15 @@ export default function StudentsPage() {
           <button 
             type="button"
             onClick={() => router.push("/students/applicants")}
-            className="bg-primary text-black font-bold px-8 py-4 rounded-xl flex items-center gap-3 shadow-[0_15px_30px_rgba(252,163,17,0.3)] hover:shadow-[0_20px_40px_rgba(252,163,17,0.4)] active:scale-95 transition-all cursor-pointer select-none"
+            className="relative bg-primary text-black font-bold px-8 py-4 rounded-xl flex items-center gap-3 shadow-[0_15px_30px_rgba(252,163,17,0.3)] hover:shadow-[0_20px_40px_rgba(252,163,17,0.4)] active:scale-95 transition-all cursor-pointer select-none"
           >
             <span className="material-symbols-outlined">person_add</span>
             <span className="font-semibold text-sm tracking-widest uppercase">New Applicants</span>
+            {pendingApplicantsCount > 0 && (
+              <span className="absolute -top-2 -right-2 min-w-[22px] h-[22px] bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center px-1 shadow-lg animate-pulse">
+                {pendingApplicantsCount > 99 ? "99+" : pendingApplicantsCount}
+              </span>
+            )}
           </button>
         </div>
 
