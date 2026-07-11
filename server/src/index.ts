@@ -960,6 +960,229 @@ app.post('/api/training-applications/:id/reject', async (req, res) => {
   }
 });
 
+// ==========================================
+// TASKS ROUTES
+// ==========================================
+
+// GET all tasks (with optional course filter)
+app.get('/api/tasks', async (req, res) => {
+  const { course } = req.query;
+  try {
+    let query = `SELECT * FROM tasks ORDER BY created_at DESC`;
+    let params: any[] = [];
+    if (course) {
+      query = `SELECT * FROM tasks WHERE course_id = $1 ORDER BY created_at DESC`;
+      params = [course];
+    }
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET single task by id
+app.get('/api/tasks/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Task not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST create a new task
+app.post('/api/tasks', async (req, res) => {
+  const { title, description, courseId, courseLabel, points, dueDate, referenceLinks, assignedStudentIds } = req.body;
+  if (!title || !courseId) return res.status(400).json({ success: false, error: 'Title and courseId are required.' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const taskRes = await client.query(
+      `INSERT INTO tasks (title, description, course_id, course_label, points, due_date, reference_links)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [title, description, courseId, courseLabel, points || 100, dueDate || null, JSON.stringify(referenceLinks || [])]
+    );
+    const task = taskRes.rows[0];
+    // Insert student-task assignments
+    if (assignedStudentIds && assignedStudentIds.length > 0) {
+      for (const studentId of assignedStudentIds) {
+        await client.query(
+          `INSERT INTO task_assignments (task_id, student_id, status) VALUES ($1, $2, 'pending')
+           ON CONFLICT (task_id, student_id) DO NOTHING`,
+          [task.id, studentId]
+        );
+      }
+    }
+    await client.query('COMMIT');
+    client.release();
+    res.status(201).json({ success: true, data: task });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET task assignments for a course — returns all students + their status per task
+app.get('/api/tasks/assignments/by-course/:courseId', async (req, res) => {
+  const { courseId } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT
+        ta.id AS assignment_id,
+        ta.task_id,
+        ta.student_id,
+        ta.status,
+        ta.score,
+        ta.graded_at,
+        ta.created_at AS assigned_at,
+        t.title AS task_name,
+        t.description AS task_description,
+        t.course_id,
+        t.course_label,
+        t.points,
+        t.due_date,
+        t.reference_links,
+        s.first_name,
+        s.last_name,
+        s.enrollment_id,
+        s.program,
+        u.email
+      FROM task_assignments ta
+      JOIN tasks t ON t.id = ta.task_id
+      JOIN students s ON s.id = ta.student_id
+      JOIN users u ON u.id = s.user_id
+      WHERE t.course_id = $1
+      ORDER BY ta.created_at DESC
+    `, [courseId]);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET single task assignment with submission details
+app.get('/api/tasks/assignments/:assignmentId', async (req, res) => {
+  const { assignmentId } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT
+        ta.id AS assignment_id,
+        ta.task_id,
+        ta.student_id,
+        ta.status,
+        ta.score,
+        ta.graded_at,
+        ta.feedback,
+        ta.created_at AS assigned_at,
+        t.title AS task_name,
+        t.description AS task_description,
+        t.course_id,
+        t.course_label,
+        t.points,
+        t.due_date,
+        t.reference_links,
+        s.first_name,
+        s.last_name,
+        s.enrollment_id,
+        s.program,
+        u.email
+      FROM task_assignments ta
+      JOIN tasks t ON t.id = ta.task_id
+      JOIN students s ON s.id = ta.student_id
+      JOIN users u ON u.id = s.user_id
+      WHERE ta.id = $1
+    `, [assignmentId]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Assignment not found' });
+
+    // Also fetch submission if exists
+    const submissionRes = await pool.query(
+      'SELECT * FROM task_submissions WHERE assignment_id = $1 ORDER BY submitted_at DESC LIMIT 1',
+      [assignmentId]
+    );
+
+    // Also fetch past scores for the student
+    const historyRes = await pool.query(`
+      SELECT ta2.score, ta2.graded_at, t2.title AS task_name, ta2.status
+      FROM task_assignments ta2
+      JOIN tasks t2 ON t2.id = ta2.task_id
+      WHERE ta2.student_id = $1 AND ta2.status = 'marked' AND ta2.id != $2
+      ORDER BY ta2.graded_at DESC
+      LIMIT 5
+    `, [result.rows[0].student_id, assignmentId]);
+
+    res.json({
+      success: true,
+      data: {
+        ...result.rows[0],
+        submission: submissionRes.rows[0] || null,
+        scoring_history: historyRes.rows
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST submit task proof (student submission)
+app.post('/api/tasks/assignments/:assignmentId/submit', async (req, res) => {
+  const { assignmentId } = req.params;
+  const { description, githubUrl, liveUrl, additionalLinks, imageUrls, videoUrl, notes } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Upsert submission
+    await client.query(
+      `INSERT INTO task_submissions (assignment_id, description, github_url, live_url, additional_links, image_urls, video_url, notes, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       ON CONFLICT (assignment_id) DO UPDATE SET
+         description = EXCLUDED.description,
+         github_url = EXCLUDED.github_url,
+         live_url = EXCLUDED.live_url,
+         additional_links = EXCLUDED.additional_links,
+         image_urls = EXCLUDED.image_urls,
+         video_url = EXCLUDED.video_url,
+         notes = EXCLUDED.notes,
+         submitted_at = NOW()`,
+      [assignmentId, description, githubUrl, liveUrl, JSON.stringify(additionalLinks || []), JSON.stringify(imageUrls || []), videoUrl, notes]
+    );
+    // Update assignment status to completed
+    await client.query(
+      `UPDATE task_assignments SET status = 'completed' WHERE id = $1`,
+      [assignmentId]
+    );
+    await client.query('COMMIT');
+    client.release();
+    res.json({ success: true, message: 'Submission saved successfully.' });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST grade a task assignment
+app.post('/api/tasks/assignments/:assignmentId/grade', async (req, res) => {
+  const { assignmentId } = req.params;
+  const { score, feedback } = req.body;
+  const scoreNum = Number(score);
+  if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100) {
+    return res.status(400).json({ success: false, error: 'Score must be between 0 and 100.' });
+  }
+  try {
+    await pool.query(
+      `UPDATE task_assignments SET status = 'marked', score = $1, feedback = $2, graded_at = NOW() WHERE id = $3`,
+      [scoreNum, feedback || null, assignmentId]
+    );
+    res.json({ success: true, message: 'Task graded successfully.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.listen(PORT, async () => {
   console.log(`Server is running on http://localhost:${PORT}`);
   try {
@@ -992,5 +1215,66 @@ app.listen(PORT, async () => {
     console.log('✅ "training_applications" table created/verified successfully!');
   } catch (dbErr: any) {
     console.error('❌ Failed to verify/create "training_applications" table:', dbErr.message);
+  }
+
+  // Auto-create tasks table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(500) NOT NULL,
+        description TEXT,
+        course_id VARCHAR(100) NOT NULL,
+        course_label VARCHAR(255),
+        points INT DEFAULT 100,
+        due_date TIMESTAMPTZ,
+        reference_links JSONB DEFAULT '[]',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('✅ "tasks" table created/verified successfully!');
+  } catch (dbErr: any) {
+    console.error('❌ Failed to verify/create "tasks" table:', dbErr.message);
+  }
+
+  // Auto-create task_assignments table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS task_assignments (
+        id SERIAL PRIMARY KEY,
+        task_id INT REFERENCES tasks(id) ON DELETE CASCADE NOT NULL,
+        student_id INT REFERENCES students(id) ON DELETE CASCADE NOT NULL,
+        status VARCHAR(50) DEFAULT 'pending',
+        score NUMERIC(5,2),
+        feedback TEXT,
+        graded_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(task_id, student_id)
+      );
+    `);
+    console.log('✅ "task_assignments" table created/verified successfully!');
+  } catch (dbErr: any) {
+    console.error('❌ Failed to verify/create "task_assignments" table:', dbErr.message);
+  }
+
+  // Auto-create task_submissions table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS task_submissions (
+        id SERIAL PRIMARY KEY,
+        assignment_id INT REFERENCES task_assignments(id) ON DELETE CASCADE NOT NULL UNIQUE,
+        description TEXT,
+        github_url VARCHAR(500),
+        live_url VARCHAR(500),
+        additional_links JSONB DEFAULT '[]',
+        image_urls JSONB DEFAULT '[]',
+        video_url VARCHAR(500),
+        notes TEXT,
+        submitted_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('✅ "task_submissions" table created/verified successfully!');
+  } catch (dbErr: any) {
+    console.error('❌ Failed to verify/create "task_submissions" table:', dbErr.message);
   }
 });

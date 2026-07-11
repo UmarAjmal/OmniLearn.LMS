@@ -50,6 +50,8 @@ export default function NewTaskPage() {
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
   const [isCode, setIsCode] = useState(false);
+  const [isSubmittingTask, setIsSubmittingTask] = useState(false);
+
 
   // Fetch students
   useEffect(() => {
@@ -164,18 +166,42 @@ export default function NewTaskPage() {
       return;
     }
 
-    toast.info("Assigning task to selected candidates...", { autoClose: 1000 });
-
-    // Mock successful backend operation
-    setTimeout(() => {
-      toast.success(`🎉 Task successfully assigned to ${selectedStudentIds.length} students!`);
-      // Reset form
-      setTaskTitle("");
-      setTaskContent("");
-      setLinks([]);
-      setSelectedStudentIds([]);
-    }, 1500);
+    const course = COURSES.find(c => c.id === selectedCourse);
+    setIsSubmittingTask(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: taskTitle,
+          description: taskContent,
+          courseId: selectedCourse,
+          courseLabel: course?.label || selectedCourse,
+          points: Number(points) || 100,
+          dueDate: dueDate || null,
+          referenceLinks: links.map(l => ({ title: l.title, url: l.url })),
+          assignedStudentIds: selectedStudentIds,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast.error(json.error || "Failed to create task.");
+      } else {
+        toast.success(`🎉 Task assigned to ${selectedStudentIds.length} student(s)!`);
+        setTaskTitle("");
+        setTaskContent("");
+        setLinks([]);
+        setSelectedStudentIds([]);
+        setDueDate("");
+        setPoints("100");
+      }
+    } catch {
+      toast.error("Network error. Could not reach the server.");
+    } finally {
+      setIsSubmittingTask(false);
+    }
   };
+
 
   return (
     <div className="relative text-xs md:text-sm font-sans text-white/90">
@@ -446,10 +472,15 @@ export default function NewTaskPage() {
                 <div className="pt-4 border-t border-white/5">
                   <button
                     type="submit"
-                    className="w-full bg-primary hover:bg-primary/95 text-black font-bold py-3 px-6 rounded-xl shadow-[0_8px_24px_-4px_rgba(252,163,17,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer font-semibold uppercase tracking-wider text-xs"
+                    disabled={isSubmittingTask}
+                    className="w-full bg-primary hover:bg-primary/95 disabled:opacity-60 text-black font-bold py-3 px-6 rounded-xl shadow-[0_8px_24px_-4px_rgba(252,163,17,0.3)] active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer font-semibold uppercase tracking-wider text-xs"
                   >
-                    <span className="material-symbols-outlined text-[18px]">assignment_turned_in</span>
-                    Assign Task to Candidates ({selectedStudentIds.length})
+                    {isSubmittingTask ? (
+                      <><div className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />Creating Task…</>
+                    ) : (
+                      <><span className="material-symbols-outlined text-[18px]">assignment_turned_in</span>
+                      Assign Task to Candidates ({selectedStudentIds.length})</>
+                    )}
                   </button>
                 </div>
 
