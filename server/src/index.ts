@@ -583,14 +583,115 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    let studentInfo = null;
+    if (user.role === 'student') {
+      const studentRes = await pool.query('SELECT * FROM students WHERE user_id = $1', [user.id]);
+      if (studentRes.rows.length > 0) {
+        studentInfo = studentRes.rows[0];
+      }
+    }
+
     res.json({ 
       success: true, 
       token, 
       user: { 
         id: user.id, 
         email: user.email, 
-        role: user.role 
+        role: user.role,
+        student: studentInfo
       } 
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET student profile
+app.get('/api/students/profile', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
+  try {
+    const result = await pool.query('SELECT * FROM students WHERE user_id = $1', [userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Student profile not found.' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT update student profile
+app.put('/api/students/profile', async (req, res) => {
+  const { userId, firstName, lastName, whatsapp, cnic, university, semester, program, avatarUrl } = req.body;
+  if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
+  try {
+    const result = await pool.query(
+      `UPDATE students 
+       SET first_name = $1, last_name = $2, whatsapp = $3, cnic = $4, university = $5, semester = $6, program = $7, avatar_url = $8 
+       WHERE user_id = $9
+       RETURNING *`,
+      [firstName, lastName, whatsapp, cnic, university, Number(semester) || null, program, avatarUrl, userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Student profile not found to update.' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET student tasks list
+app.get('/api/students/:studentId/tasks', async (req, res) => {
+  const { studentId } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT
+        ta.id AS assignment_id,
+        ta.task_id,
+        ta.student_id,
+        ta.status,
+        ta.score,
+        ta.graded_at,
+        ta.feedback,
+        ta.created_at AS assigned_at,
+        t.title AS task_name,
+        t.description AS task_description,
+        t.course_id,
+        t.course_label,
+        t.points,
+        t.due_date,
+        t.reference_links
+      FROM task_assignments ta
+      JOIN tasks t ON t.id = ta.task_id
+      WHERE ta.student_id = $1
+      ORDER BY ta.created_at DESC
+    `, [studentId]);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET student dashboard stats
+app.get('/api/students/:studentId/dashboard-stats', async (req, res) => {
+  const { studentId } = req.params;
+  try {
+    const totalRes = await pool.query('SELECT COUNT(*) FROM task_assignments WHERE student_id = $1', [studentId]);
+    const completedRes = await pool.query("SELECT COUNT(*) FROM task_assignments WHERE student_id = $1 AND status = 'completed'", [studentId]);
+    const gradedRes = await pool.query("SELECT COUNT(*) FROM task_assignments WHERE student_id = $1 AND status = 'marked'", [studentId]);
+    const avgScoreRes = await pool.query("SELECT AVG(score) FROM task_assignments WHERE student_id = $1 AND status = 'marked'", [studentId]);
+    
+    res.json({
+      success: true,
+      data: {
+        totalTasks: parseInt(totalRes.rows[0].count) || 0,
+        completedTasks: parseInt(completedRes.rows[0].count) || 0,
+        gradedTasks: parseInt(gradedRes.rows[0].count) || 0,
+        pendingTasks: (parseInt(totalRes.rows[0].count) || 0) - (parseInt(completedRes.rows[0].count) || 0) - (parseInt(gradedRes.rows[0].count) || 0),
+        averageScore: Math.round(parseFloat(avgScoreRes.rows[0].avg)) || 0
+      }
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -1189,6 +1290,15 @@ app.listen(PORT, async () => {
     console.log('✅ "applicants" table program column auto-migrated successfully!');
   } catch (dbErr: any) {
     console.error("Database self-correction failed:", dbErr.message);
+  }
+  try {
+    await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(50)");
+    await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS cnic VARCHAR(50)");
+    await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS university VARCHAR(255)");
+    await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS semester INT");
+    console.log('✅ "students" table columns auto-migrated successfully!');
+  } catch (dbErr: any) {
+    console.error("Students table self-correction failed:", dbErr.message);
   }
   // Auto-create/migrate training_applications table
   try {

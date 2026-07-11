@@ -19,23 +19,65 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
 
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  const [profileIncomplete, setProfileIncomplete] = useState(false);
 
   useEffect(() => {
     const auth = localStorage.getItem("lms_auth") === "true";
+    const role = localStorage.getItem("lms_user_role");
     setIsAuthenticated(auth);
+    setUserRole(role);
 
     const isPublicRoute = pathname === "/" || pathname.startsWith("/signup") || pathname.startsWith("/apply");
 
-    if (isPublicRoute) {
-      if (auth && pathname === "/") {
-        router.push("/dashboard");
+    if (auth) {
+      if (role === "student") {
+        // Parse and check if profile is complete
+        try {
+          const studentStr = localStorage.getItem("lms_student_info");
+          if (studentStr) {
+            const student = JSON.parse(studentStr);
+            const isComplete = 
+              student.first_name?.trim() && 
+              student.last_name?.trim() && 
+              student.whatsapp?.trim() && 
+              student.cnic?.trim() && 
+              student.university?.trim() && 
+              student.semester;
+            setProfileIncomplete(!isComplete);
+          } else {
+            setProfileIncomplete(true);
+          }
+        } catch {
+          setProfileIncomplete(true);
+        }
+
+        if (!pathname.startsWith("/student") && !isPublicRoute) {
+          router.push("/student/dashboard");
+          return;
+        }
       } else {
-        setIsCheckingAuth(false);
+        // Admin
+        setProfileIncomplete(false);
+        if (pathname.startsWith("/student")) {
+          router.push("/dashboard");
+          return;
+        }
       }
+      if (pathname === "/") {
+        if (role === "student") {
+          router.push("/student/dashboard");
+        } else {
+          router.push("/dashboard");
+        }
+        return;
+      }
+      setIsCheckingAuth(false);
     } else {
-      if (!auth) {
-        // Boost back to login page
-        toast.error("Please sign in to access the executive dashboard.");
+      setProfileIncomplete(false);
+      if (!isPublicRoute) {
+        toast.error("Please sign in to access the portal.");
         router.push("/");
       } else {
         setIsCheckingAuth(false);
@@ -47,6 +89,9 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
   const handleLogout = (e: React.MouseEvent) => {
     e.preventDefault();
     localStorage.removeItem("lms_auth");
+    localStorage.removeItem("lms_user_role");
+    localStorage.removeItem("lms_user_id");
+    localStorage.removeItem("lms_student_info");
     toast.success("Successfully logged out.");
     router.push("/");
   };
@@ -179,120 +224,148 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
         </div> */}
         
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
-          <Link
-            href="/dashboard"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
-              pathname === "/dashboard" 
-                ? "bg-primary/10 text-primary border-l-4 border-primary" 
-                : "text-on-surface-variant hover:text-white hover:bg-white/10"
-            }`}
-          >
-            <span className="material-symbols-outlined" data-icon="grid_view">
-              grid_view
-            </span>
-            <span className="font-body-md text-sm font-semibold">Dashboard</span>
-          </Link>
-          {/* <Link
-            href="/courses"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
-              pathname.startsWith("/courses")
-                ? "bg-primary/10 text-primary border-l-4 border-primary" 
-                : "text-on-surface-variant hover:text-white hover:bg-white/10"
-            }`}
-          >
-            <span className="material-symbols-outlined" data-icon="menu_book">
-              menu_book
-            </span>
-            <span className="font-body-md text-sm font-semibold">Courses</span>
-          </Link> */}
-          <Link
-            href="/students"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
-              pathname.startsWith("/students")
-                ? "bg-primary/10 text-primary border-l-4 border-primary" 
-                : "text-on-surface-variant hover:text-white hover:bg-white/10"
-            }`}
-          >
-            <span className="material-symbols-outlined" data-icon="group">
-              group
-            </span>
-            <span className="font-body-md text-sm font-semibold">Students</span>
-          </Link>
-          
-          {/* Tasks Dropdown */}
-          <div className="w-full">
-            <button
-              onClick={() => setIsTasksOpen(!isTasksOpen)}
-              className={`w-full px-4 py-3 flex items-center justify-between rounded-lg transition-all border-none bg-transparent cursor-pointer text-left ${
-                pathname.startsWith("/tasks")
-                  ? "bg-primary/5 text-primary"
-                  : "text-on-surface-variant hover:text-white hover:bg-white/10"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined" data-icon="assignment">
+          {userRole === "student" ? (
+            <>
+              <Link
+                href="/student/dashboard"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
+                  pathname === "/student/dashboard" 
+                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
+                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span className="material-symbols-outlined">
+                  grid_view
+                </span>
+                <span className="font-body-md text-sm font-semibold">Dashboard</span>
+              </Link>
+              <Link
+                href="/student/submit-task"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
+                  pathname === "/student/submit-task" 
+                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
+                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span className="material-symbols-outlined">
+                  upload
+                </span>
+                <span className="font-body-md text-sm font-semibold">Submit Task</span>
+              </Link>
+              <Link
+                href="/student/tasks"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
+                  pathname === "/student/tasks" 
+                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
+                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span className="material-symbols-outlined">
                   assignment
                 </span>
-                <span className="font-body-md text-sm font-semibold">Tasks</span>
-              </div>
-              <span className={`material-symbols-outlined transition-transform duration-200 text-sm ${isTasksOpen ? "rotate-180" : ""}`}>
-                expand_more
-              </span>
-            </button>
-            
-            {isTasksOpen && (
-              <div className="pl-9 pr-2 mt-1 space-y-1">
-                <Link
-                  href="/tasks/new"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`px-3 py-2 flex items-center gap-2 rounded-lg transition-all text-xs font-semibold uppercase tracking-wider block ${
-                    pathname === "/tasks/new"
-                      ? "text-primary bg-primary/10 border-l-2 border-primary"
-                      : "text-on-surface-variant/80 hover:text-white hover:bg-white/5"
+                <span className="font-body-md text-sm font-semibold">Tasks List</span>
+              </Link>
+              <Link
+                href="/student/profile"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
+                  pathname === "/student/profile" 
+                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
+                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span className="material-symbols-outlined">
+                  person
+                </span>
+                <span className="font-body-md text-sm font-semibold">Profile</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/dashboard"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
+                  pathname === "/dashboard" 
+                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
+                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span className="material-symbols-outlined" data-icon="grid_view">
+                  grid_view
+                </span>
+                <span className="font-body-md text-sm font-semibold">Dashboard</span>
+              </Link>
+              <Link
+                href="/students"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
+                  pathname.startsWith("/students")
+                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
+                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <span className="material-symbols-outlined" data-icon="group">
+                  group
+                </span>
+                <span className="font-body-md text-sm font-semibold">Students</span>
+              </Link>
+              
+              {/* Tasks Dropdown */}
+              <div className="w-full">
+                <button
+                  onClick={() => setIsTasksOpen(!isTasksOpen)}
+                  className={`w-full px-4 py-3 flex items-center justify-between rounded-lg transition-all border-none bg-transparent cursor-pointer text-left ${
+                    pathname.startsWith("/tasks")
+                      ? "bg-primary/5 text-primary"
+                      : "text-on-surface-variant hover:text-white hover:bg-white/10"
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[16px]">add_task</span>
-                  <span>New Task</span>
-                </Link>
-                <Link
-                  href="/tasks/completed"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`px-3 py-2 flex items-center gap-2 rounded-lg transition-all text-xs font-semibold uppercase tracking-wider block ${
-                    pathname === "/tasks/completed"
-                      ? "text-primary bg-primary/10 border-l-2 border-primary"
-                      : "text-on-surface-variant/80 hover:text-white hover:bg-white/5"
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px]">task_alt</span>
-                  <span>Complete Task</span>
-                </Link>
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined" data-icon="assignment">
+                      assignment
+                    </span>
+                    <span className="font-body-md text-sm font-semibold">Tasks</span>
+                  </div>
+                  <span className={`material-symbols-outlined transition-transform duration-200 text-sm ${isTasksOpen ? "rotate-180" : ""}`}>
+                    expand_more
+                  </span>
+                </button>
+                
+                {isTasksOpen && (
+                  <div className="pl-9 pr-2 mt-1 space-y-1">
+                    <Link
+                      href="/tasks/new"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`px-3 py-2 flex items-center gap-2 rounded-lg transition-all text-xs font-semibold uppercase tracking-wider block ${
+                        pathname === "/tasks/new"
+                          ? "text-primary bg-primary/10 border-l-2 border-primary"
+                          : "text-on-surface-variant/80 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">add_task</span>
+                      <span>New Task</span>
+                    </Link>
+                    <Link
+                      href="/tasks/completed"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`px-3 py-2 flex items-center gap-2 rounded-lg transition-all text-xs font-semibold uppercase tracking-wider block ${
+                        pathname === "/tasks/completed"
+                          ? "text-primary bg-primary/10 border-l-2 border-primary"
+                          : "text-on-surface-variant/80 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">task_alt</span>
+                      <span>Complete Task</span>
+                    </Link>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          {/* <a
-            className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
-            href="#"
-          >
-            <span className="material-symbols-outlined" data-icon="leaderboard">
-              leaderboard
-            </span>
-            <span className="font-body-md text-sm font-semibold">Analytics</span>
-          </a>
-          <a
-            className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
-            href="#"
-          >
-            <span
-              className="material-symbols-outlined"
-              data-icon="account_balance_wallet"
-            >
-              account_balance_wallet
-            </span>
-            <span className="font-body-md text-sm font-semibold">Assets</span>
-          </a> */}
+            </>
+          )}
           <a
             className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
             href="#"
@@ -330,6 +403,23 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
 
       {/* Main Content Canvas */}
       <main className="md:ml-64 pt-20 md:pt-24 px-4 sm:px-6 md:px-10 pb-12 min-h-screen relative z-10 transition-all duration-300">
+        {profileIncomplete && (
+          <div className="mb-6 p-4 bg-orange-500/10 border-2 border-orange-500/25 rounded-2xl flex items-center gap-3.5 shadow-[0_4px_20px_rgba(249,115,22,0.1)]">
+            <span className="material-symbols-outlined text-orange-400 text-2xl shrink-0">warning</span>
+            <div>
+              <p className="text-xs font-bold text-white">Profile Incomplete!</p>
+              <p className="text-[10px] text-on-surface-variant font-light mt-0.5">
+                You must complete your profile (compulsory fields) in order to unlock all executive LMS features.
+              </p>
+            </div>
+            <Link
+              href="/student/profile"
+              className="ml-auto px-4 py-2 bg-orange-500 hover:bg-orange-500/90 text-black font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all decoration-none active:scale-[0.97]"
+            >
+              Complete Now
+            </Link>
+          </div>
+        )}
         {children}
       </main>
     </>

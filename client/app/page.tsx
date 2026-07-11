@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -27,26 +29,56 @@ export default function LoginPage() {
   }, []);
 
   // Handle login verification
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     if (!email.trim() || !password.trim()) {
-      toast.warning("Please fill in all executive corporate fields.");
+      toast.warning("Please fill in all credential fields.");
       setIsSubmitting(false);
       return;
     }
 
-    // Dynamic verification supporting 'admin' or corporate email formats
-    const isUsernameValid = email === "admin" || email === "admin@enterprise.com";
-    const isPasswordValid = password === "admin123";
-
-    if (isUsernameValid && isPasswordValid) {
+    // Offline Admin Fallback
+    const isOfflineAdmin = (email === "admin" || email === "admin@enterprise.com") && password === "admin123";
+    if (isOfflineAdmin) {
       localStorage.setItem("lms_auth", "true");
+      localStorage.setItem("lms_user_role", "admin");
       toast.success("Welcome back, Senior Administrator!");
       router.push("/dashboard");
-    } else {
-      toast.error("Invalid corporate username or password.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast.error(json.error || "Invalid username or password.");
+      } else {
+        localStorage.setItem("lms_auth", "true");
+        localStorage.setItem("lms_user_role", json.user.role);
+        localStorage.setItem("lms_user_id", String(json.user.id));
+        
+        if (json.user.role === "student") {
+          if (json.user.student) {
+            localStorage.setItem("lms_student_info", JSON.stringify(json.user.student));
+          }
+          toast.success("Login successful. Welcome to Student Portal!");
+          router.push("/student/dashboard");
+        } else {
+          toast.success("Login successful. Welcome back, Administrator!");
+          router.push("/dashboard");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Network error. Could not connect to authentication server.");
+    } finally {
       setIsSubmitting(false);
     }
   };
