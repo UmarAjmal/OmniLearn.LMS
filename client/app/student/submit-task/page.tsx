@@ -67,18 +67,52 @@ export default function SubmitTaskPage() {
 
   useEffect(() => {
     const infoStr = localStorage.getItem("lms_student_info");
-    if (!infoStr) {
-      toast.error("Session information missing. Re-login.");
+    const userId = localStorage.getItem("lms_user_id");
+
+    const handleLogout = () => {
+      localStorage.removeItem("lms_auth");
+      localStorage.removeItem("lms_user_role");
+      localStorage.removeItem("lms_user_id");
+      localStorage.removeItem("lms_student_info");
       router.push("/");
+    };
+
+    if (!infoStr || infoStr === "undefined" || infoStr === "null") {
+      if (userId) {
+        fetch(`${API_BASE_URL}/api/students/profile?userId=${userId}`)
+          .then(r => r.json())
+          .then(json => {
+            if (json.success && json.data) {
+              localStorage.setItem("lms_student_info", JSON.stringify(json.data));
+              setStudentId(json.data.id);
+              fetchTasks(json.data.id);
+            } else {
+              toast.error("Session missing. Please re-login.");
+              handleLogout();
+            }
+          })
+          .catch(() => {
+            toast.error("Network error. Please try again.");
+          });
+      } else {
+        toast.error("Session details missing. Please re-login.");
+        handleLogout();
+      }
       return;
     }
+
     try {
       const studentObj = JSON.parse(infoStr);
-      setStudentId(studentObj.id);
-      fetchTasks(studentObj.id);
+      if (studentObj && studentObj.id) {
+        setStudentId(studentObj.id);
+        fetchTasks(studentObj.id);
+      } else {
+        toast.error("Session details missing. Please re-login.");
+        handleLogout();
+      }
     } catch {
-      toast.error("Session corrupt.");
-      router.push("/");
+      toast.error("Failed to parse student session.");
+      handleLogout();
     }
   }, [router, fetchTasks]);
 

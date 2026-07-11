@@ -74,9 +74,17 @@ export default function StudentProfilePage() {
 
   useEffect(() => {
     const uid = localStorage.getItem("lms_user_id");
-    if (!uid) {
-      toast.error("User session missing.");
+    const handleLogout = () => {
+      localStorage.removeItem("lms_auth");
+      localStorage.removeItem("lms_user_role");
+      localStorage.removeItem("lms_user_id");
+      localStorage.removeItem("lms_student_info");
       router.push("/");
+    };
+
+    if (!uid) {
+      toast.error("User session details missing. Please re-login.");
+      handleLogout();
       return;
     }
     setUserId(uid);

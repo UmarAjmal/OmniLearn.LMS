@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+
 export default function Navigation({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTasksOpen, setIsTasksOpen] = useState(false);
@@ -26,17 +28,54 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     const auth = localStorage.getItem("lms_auth") === "true";
     const role = localStorage.getItem("lms_user_role");
+    const userId = localStorage.getItem("lms_user_id");
     setIsAuthenticated(auth);
     setUserRole(role);
 
     const isPublicRoute = pathname === "/" || pathname.startsWith("/signup") || pathname.startsWith("/apply");
 
+    const handleLogout = () => {
+      localStorage.removeItem("lms_auth");
+      localStorage.removeItem("lms_user_role");
+      localStorage.removeItem("lms_user_id");
+      localStorage.removeItem("lms_student_info");
+      setUserRole(null);
+      setIsAuthenticated(false);
+      router.push("/");
+    };
+
     if (auth) {
       if (role === "student") {
+        const studentStr = localStorage.getItem("lms_student_info");
+        const hasStudentInfo = studentStr && studentStr !== "undefined" && studentStr !== "null";
+
+        if (!hasStudentInfo) {
+          if (userId) {
+            // Load dynamically from database to resolve missing storage
+            fetch(`${API_BASE_URL}/api/students/profile?userId=${userId}`)
+              .then(r => r.json())
+              .then(res => {
+                if (res.success && res.data) {
+                  localStorage.setItem("lms_student_info", JSON.stringify(res.data));
+                  window.location.reload();
+                } else {
+                  toast.error("Profile registry invalid. Re-login.");
+                  handleLogout();
+                }
+              })
+              .catch(() => {
+                // Network error, do not loop
+              });
+          } else {
+            toast.error("Session information missing. Re-login.");
+            handleLogout();
+            return;
+          }
+        }
+
         // Parse and check if profile is complete
         try {
-          const studentStr = localStorage.getItem("lms_student_info");
-          if (studentStr && studentStr !== "undefined" && studentStr !== "null") {
+          if (hasStudentInfo) {
             const student = JSON.parse(studentStr);
             if (student) {
               const isComplete = 
@@ -47,15 +86,10 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
                 student.university?.trim() && 
                 student.semester;
               setProfileIncomplete(!isComplete);
-            } else {
-              setProfileIncomplete(true);
             }
-          } else {
-            setProfileIncomplete(true);
           }
         } catch (e) {
           console.error(e);
-          setProfileIncomplete(true);
         }
 
         if (!pathname.startsWith("/student/") && !isPublicRoute) {
