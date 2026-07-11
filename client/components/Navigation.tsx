@@ -53,14 +53,14 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
           setProfileIncomplete(true);
         }
 
-        if (!pathname.startsWith("/student") && !isPublicRoute) {
+        if (!pathname.startsWith("/student/") && !isPublicRoute) {
           router.push("/student/dashboard");
           return;
         }
       } else {
         // Admin
         setProfileIncomplete(false);
-        if (pathname.startsWith("/student")) {
+        if (pathname.startsWith("/student/")) {
           router.push("/dashboard");
           return;
         }
