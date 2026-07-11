@@ -19,6 +19,8 @@ export default function StudentProfilePage() {
   const router = useRouter();
 
   const [userId, setUserId] = useState<string | null>(null);
+  
+  // Compulsory Fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
@@ -27,6 +29,13 @@ export default function StudentProfilePage() {
   const [semester, setSemester] = useState<string>("");
   const [program, setProgram] = useState("fullstack-ai");
   const [avatarUrl, setAvatarUrl] = useState("");
+  
+  // Computer Science Social Handles
+  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [githubUrl, setGithubUrl] = useState("");
+  const [portfolioUrl, setPortfolioUrl] = useState("");
+  const [resumeUrl, setResumeUrl] = useState("");
+
   const [enrollmentId, setEnrollmentId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,9 +55,13 @@ export default function StudentProfilePage() {
         setSemester(d.semester ? String(d.semester) : "");
         setProgram(d.program || "fullstack-ai");
         setAvatarUrl(d.avatar_url || "");
+        setLinkedinUrl(d.linkedin_url || "");
+        setGithubUrl(d.github_url || "");
+        setPortfolioUrl(d.portfolio_url || "");
+        setResumeUrl(d.resume_url || "");
         setEnrollmentId(d.enrollment_id || "");
 
-        // Keep local storage synchronized
+        // Synchronize local storage to resolve warning banners immediately
         localStorage.setItem("lms_student_info", JSON.stringify(d));
       }
     } catch (err) {
@@ -91,8 +104,11 @@ export default function StudentProfilePage() {
           cnic: cnic.trim(),
           university: university.trim(),
           semester: Number(semester),
-          program,
-          avatarUrl: avatarUrl.trim()
+          avatarUrl: avatarUrl.trim(),
+          linkedinUrl: linkedinUrl.trim(),
+          githubUrl: githubUrl.trim(),
+          portfolioUrl: portfolioUrl.trim(),
+          resumeUrl: resumeUrl.trim()
         })
       });
       const json = await res.json();
@@ -101,7 +117,7 @@ export default function StudentProfilePage() {
       } else {
         toast.success("🎉 Profile completed and updated successfully!");
         localStorage.setItem("lms_student_info", JSON.stringify(json.data));
-        // Force refresh page to update warning banner in Navigation
+        // Force reload page to update warning banner in Navigation
         window.location.reload();
       }
     } catch {
@@ -118,9 +134,10 @@ export default function StudentProfilePage() {
   );
 
   const inputCls = "w-full bg-[#0a1426]/60 border border-white/10 rounded-lg p-3 text-white text-xs font-semibold focus:outline-none focus:border-primary/50 transition-colors placeholder-white/20";
+  const disabledInputCls = "w-full bg-white/5 border border-white/5 rounded-lg p-3 text-white/50 text-xs font-semibold cursor-not-allowed";
 
   return (
-    <div className="relative text-xs font-sans text-white/90 max-w-2xl mx-auto space-y-6">
+    <div className="relative text-xs font-sans text-white/90 max-w-3xl mx-auto space-y-6">
       <style dangerouslySetInnerHTML={{__html: `
         .glacier-card {
           background: rgba(10, 20, 38, 0.72);
@@ -132,8 +149,8 @@ export default function StudentProfilePage() {
 
       <div>
         <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">Onboarding Profile Builder</h2>
-        <p className="text-on-surface-variant font-light mt-1">
-          Provide your compulsory verification details to register your student profile permanently.
+        <p className="text-on-surface-variant font-light mt-1 text-xs">
+          Provide your compulsory verification details and professional links to register your student profile.
         </p>
       </div>
 
@@ -149,7 +166,7 @@ export default function StudentProfilePage() {
             
             {/* Enrollment info (read only) */}
             {enrollmentId && (
-              <div className="bg-white/5 border border-white/5 rounded-xl p-3 flex items-center justify-between">
+              <div className="bg-white/5 border border-white/5 rounded-xl p-3.5 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Assigned Enrollment ID</p>
                   <p className="text-xs font-extrabold text-white mt-0.5">{enrollmentId}</p>
@@ -157,6 +174,10 @@ export default function StudentProfilePage() {
                 <span className="material-symbols-outlined text-primary text-2xl">verified</span>
               </div>
             )}
+
+            <div className="border-b border-white/5 pb-2">
+              <h3 className="text-xs font-extrabold text-primary uppercase tracking-wider">Verification details</h3>
+            </div>
 
             {/* Names */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -187,7 +208,7 @@ export default function StudentProfilePage() {
             {/* WhatsApp & CNIC */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <FieldLabel required>WhatsApp / Phone Number</FieldLabel>
+                <FieldLabel required>WhatsApp Number</FieldLabel>
                 <input
                   type="text"
                   value={whatsapp}
@@ -239,23 +260,80 @@ export default function StudentProfilePage() {
               </div>
             </div>
 
-            {/* Selected Track & Avatar */}
+            <div className="border-b border-white/5 pb-2 pt-2">
+              <h3 className="text-xs font-extrabold text-primary uppercase tracking-wider">Professional Handles</h3>
+            </div>
+
+            {/* LinkedIn & GitHub */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <FieldLabel required>Enrolled Program Track</FieldLabel>
+                <FieldLabel>LinkedIn Profile URL</FieldLabel>
+                <input
+                  type="url"
+                  value={linkedinUrl}
+                  onChange={e => setLinkedinUrl(e.target.value)}
+                  placeholder="https://linkedin.com/in/username"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <FieldLabel>GitHub Profile URL</FieldLabel>
+                <input
+                  type="url"
+                  value={githubUrl}
+                  onChange={e => setGithubUrl(e.target.value)}
+                  placeholder="https://github.com/username"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            {/* Portfolio & Resume */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <FieldLabel>Portfolio Website URL</FieldLabel>
+                <input
+                  type="url"
+                  value={portfolioUrl}
+                  onChange={e => setPortfolioUrl(e.target.value)}
+                  placeholder="https://username.dev"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <FieldLabel>Resume / CV Link</FieldLabel>
+                <input
+                  type="url"
+                  value={resumeUrl}
+                  onChange={e => setResumeUrl(e.target.value)}
+                  placeholder="https://drive.google.com/file/d/..."
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            {/* Enrolled Program (Read Only) & DP Image URL */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <FieldLabel>Enrolled Program Track</FieldLabel>
+                  <span className="text-[8px] font-bold text-yellow-500 uppercase tracking-widest">Admin Locked</span>
+                </div>
                 <select
                   value={program}
-                  onChange={e => setProgram(e.target.value)}
-                  className="w-full bg-[#0a1426]/60 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-primary/50 text-xs font-semibold"
-                  required
+                  disabled
+                  className={disabledInputCls}
                 >
                   {TRACKS.map(t => (
                     <option key={t.id} value={t.id} className="bg-[#0b132b]">{t.label}</option>
                   ))}
                 </select>
+                <p className="text-[9px] text-on-surface-variant/45 mt-1 font-light italic">
+                  * Program track transfers can only be processed by LMS Administrators.
+                </p>
               </div>
               <div>
-                <FieldLabel>Profile Avatar Image URL</FieldLabel>
+                <FieldLabel>Display Picture (DP) Image URL</FieldLabel>
                 <input
                   type="url"
                   value={avatarUrl}
@@ -273,9 +351,9 @@ export default function StudentProfilePage() {
               className="w-full bg-primary hover:bg-primary/95 disabled:opacity-50 text-black py-4 px-6 rounded-xl font-black text-xs uppercase tracking-widest shadow-[0_8px_24px_-4px_rgba(252,163,17,0.3)] cursor-pointer transition-all flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
-                <><div className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" /> Saving Profile...</>
+                <><div className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" /> Saving profile details...</>
               ) : (
-                <><span className="material-symbols-outlined text-[17px]">save</span> Save &amp; Finalize Profile</>
+                <><span className="material-symbols-outlined text-[17px]">save</span> Save &amp; Complete Onboarding Profile</>
               )}
             </button>
 

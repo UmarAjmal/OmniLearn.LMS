@@ -611,11 +611,39 @@ app.get('/api/students/profile', async (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
   try {
-    const result = await pool.query('SELECT * FROM students WHERE user_id = $1', [userId]);
-    if (result.rows.length === 0) {
+    const studentRes = await pool.query('SELECT * FROM students WHERE user_id = $1', [userId]);
+    if (studentRes.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Student profile not found.' });
     }
-    res.json({ success: true, data: result.rows[0] });
+    const student = studentRes.rows[0];
+    const userRes = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+    const email = userRes.rows[0]?.email;
+
+    // Fallback to training_applications or applicants if profile fields are empty
+    if (email) {
+      const appRes = await pool.query(
+        'SELECT * FROM training_applications WHERE gmail = $1 LIMIT 1',
+        [email]
+      );
+      if (appRes.rows.length > 0) {
+        const appData = appRes.rows[0];
+        if (!student.whatsapp) student.whatsapp = appData.whatsapp;
+        if (!student.cnic) student.cnic = appData.cnic;
+        if (!student.university) student.university = appData.university_name;
+        if (!student.semester) student.semester = appData.semester;
+      } else {
+        const applicantRes = await pool.query(
+          'SELECT * FROM applicants WHERE email = $1 LIMIT 1',
+          [email]
+        );
+        if (applicantRes.rows.length > 0) {
+          const appData = applicantRes.rows[0];
+          if (!student.whatsapp) student.whatsapp = appData.phone;
+          if (!student.university) student.university = appData.academic_background;
+        }
+      }
+    }
+    res.json({ success: true, data: student });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -623,19 +651,34 @@ app.get('/api/students/profile', async (req, res) => {
 
 // PUT update student profile
 app.put('/api/students/profile', async (req, res) => {
-  const { userId, firstName, lastName, whatsapp, cnic, university, semester, program, avatarUrl } = req.body;
+  const { 
+    userId, firstName, lastName, whatsapp, cnic, university, semester, 
+    avatarUrl, linkedinUrl, githubUrl, portfolioUrl, resumeUrl 
+  } = req.body;
+  
   if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
+  
   try {
+    // 1. Fetch existing student profile to preserve program track
+    const currentRes = await pool.query('SELECT program FROM students WHERE user_id = $1', [userId]);
+    if (currentRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Student profile not found.' });
+    }
+    const currentProgram = currentRes.rows[0].program;
+
+    // 2. Perform update
     const result = await pool.query(
       `UPDATE students 
-       SET first_name = $1, last_name = $2, whatsapp = $3, cnic = $4, university = $5, semester = $6, program = $7, avatar_url = $8 
-       WHERE user_id = $9
+       SET first_name = $1, last_name = $2, whatsapp = $3, cnic = $4, university = $5, semester = $6, 
+           program = $7, avatar_url = $8, linkedin_url = $9, github_url = $10, portfolio_url = $11, resume_url = $12
+       WHERE user_id = $13
        RETURNING *`,
-      [firstName, lastName, whatsapp, cnic, university, Number(semester) || null, program, avatarUrl, userId]
+      [
+        firstName, lastName, whatsapp, cnic, university, Number(semester) || null, 
+        currentProgram, avatarUrl, linkedinUrl, githubUrl, portfolioUrl, resumeUrl, userId
+      ]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Student profile not found to update.' });
-    }
+
     res.json({ success: true, data: result.rows[0] });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -1296,6 +1339,10 @@ app.listen(PORT, async () => {
     await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS cnic VARCHAR(50)");
     await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS university VARCHAR(255)");
     await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS semester INT");
+    await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS linkedin_url VARCHAR(500)");
+    await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS github_url VARCHAR(500)");
+    await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS portfolio_url VARCHAR(500)");
+    await pool.query("ALTER TABLE students ADD COLUMN IF NOT EXISTS resume_url VARCHAR(500)");
     console.log('✅ "students" table columns auto-migrated successfully!');
   } catch (dbErr: any) {
     console.error("Students table self-correction failed:", dbErr.message);

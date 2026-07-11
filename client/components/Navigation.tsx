@@ -36,20 +36,25 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
         // Parse and check if profile is complete
         try {
           const studentStr = localStorage.getItem("lms_student_info");
-          if (studentStr) {
+          if (studentStr && studentStr !== "undefined" && studentStr !== "null") {
             const student = JSON.parse(studentStr);
-            const isComplete = 
-              student.first_name?.trim() && 
-              student.last_name?.trim() && 
-              student.whatsapp?.trim() && 
-              student.cnic?.trim() && 
-              student.university?.trim() && 
-              student.semester;
-            setProfileIncomplete(!isComplete);
+            if (student) {
+              const isComplete = 
+                student.first_name?.trim() && 
+                student.last_name?.trim() && 
+                student.whatsapp?.trim() && 
+                student.cnic?.trim() && 
+                student.university?.trim() && 
+                student.semester;
+              setProfileIncomplete(!isComplete);
+            } else {
+              setProfileIncomplete(true);
+            }
           } else {
             setProfileIncomplete(true);
           }
-        } catch {
+        } catch (e) {
+          console.error(e);
           setProfileIncomplete(true);
         }
 

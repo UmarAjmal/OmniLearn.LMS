@@ -48,15 +48,20 @@ export default function StudentDashboardPage() {
 
   useEffect(() => {
     const infoStr = localStorage.getItem("lms_student_info");
-    if (!infoStr) {
+    if (!infoStr || infoStr === "undefined" || infoStr === "null") {
       toast.error("Student session details missing. Please re-login.");
       router.push("/");
       return;
     }
     try {
       const studentObj = JSON.parse(infoStr);
-      setStudent(studentObj);
-      fetchStats(studentObj.id).finally(() => setIsLoading(false));
+      if (studentObj && studentObj.id) {
+        setStudent(studentObj);
+        fetchStats(studentObj.id).finally(() => setIsLoading(false));
+      } else {
+        toast.error("Student profile details missing. Please re-login.");
+        router.push("/");
+      }
     } catch {
       toast.error("Failed to parse student session.");
       router.push("/");
