@@ -981,18 +981,6 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
-// GET single task by id
-app.get('/api/tasks/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const result = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Task not found' });
-    res.json({ success: true, data: result.rows[0] });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 // POST create a new task
 app.post('/api/tasks', async (req, res) => {
   const { title, description, courseId, courseLabel, points, dueDate, referenceLinks, assignedStudentIds } = req.body;
@@ -1026,7 +1014,10 @@ app.post('/api/tasks', async (req, res) => {
   }
 });
 
-// GET task assignments for a course — returns all students + their status per task
+// ── IMPORTANT: All /api/tasks/assignments/... routes MUST come BEFORE /api/tasks/:id
+// ── otherwise Express captures 'assignments' as :id and returns 404.
+
+// GET task assignments for a course
 app.get('/api/tasks/assignments/by-course/:courseId', async (req, res) => {
   const { courseId } = req.params;
   try {
@@ -1059,6 +1050,60 @@ app.get('/api/tasks/assignments/by-course/:courseId', async (req, res) => {
       ORDER BY ta.created_at DESC
     `, [courseId]);
     res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST submit task proof (student submission)
+app.post('/api/tasks/assignments/:assignmentId/submit', async (req, res) => {
+  const { assignmentId } = req.params;
+  const { description, githubUrl, liveUrl, additionalLinks, imageUrls, videoUrl, notes } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO task_submissions (assignment_id, description, github_url, live_url, additional_links, image_urls, video_url, notes, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       ON CONFLICT (assignment_id) DO UPDATE SET
+         description = EXCLUDED.description,
+         github_url = EXCLUDED.github_url,
+         live_url = EXCLUDED.live_url,
+         additional_links = EXCLUDED.additional_links,
+         image_urls = EXCLUDED.image_urls,
+         video_url = EXCLUDED.video_url,
+         notes = EXCLUDED.notes,
+         submitted_at = NOW()`,
+      [assignmentId, description, githubUrl, liveUrl, JSON.stringify(additionalLinks || []), JSON.stringify(imageUrls || []), videoUrl, notes]
+    );
+    await client.query(
+      `UPDATE task_assignments SET status = 'completed' WHERE id = $1`,
+      [assignmentId]
+    );
+    await client.query('COMMIT');
+    client.release();
+    res.json({ success: true, message: 'Submission saved successfully.' });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST grade a task assignment
+app.post('/api/tasks/assignments/:assignmentId/grade', async (req, res) => {
+  const { assignmentId } = req.params;
+  const { score, feedback } = req.body;
+  const scoreNum = Number(score);
+  if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100) {
+    return res.status(400).json({ success: false, error: 'Score must be between 0 and 100.' });
+  }
+  try {
+    await pool.query(
+      `UPDATE task_assignments SET status = 'marked', score = $1, feedback = $2, graded_at = NOW() WHERE id = $3`,
+      [scoreNum, feedback || null, assignmentId]
+    );
+    res.json({ success: true, message: 'Task graded successfully.' });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1098,13 +1143,11 @@ app.get('/api/tasks/assignments/:assignmentId', async (req, res) => {
     `, [assignmentId]);
     if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Assignment not found' });
 
-    // Also fetch submission if exists
     const submissionRes = await pool.query(
       'SELECT * FROM task_submissions WHERE assignment_id = $1 ORDER BY submitted_at DESC LIMIT 1',
       [assignmentId]
     );
 
-    // Also fetch past scores for the student
     const historyRes = await pool.query(`
       SELECT ta2.score, ta2.graded_at, t2.title AS task_name, ta2.status
       FROM task_assignments ta2
@@ -1127,57 +1170,13 @@ app.get('/api/tasks/assignments/:assignmentId', async (req, res) => {
   }
 });
 
-// POST submit task proof (student submission)
-app.post('/api/tasks/assignments/:assignmentId/submit', async (req, res) => {
-  const { assignmentId } = req.params;
-  const { description, githubUrl, liveUrl, additionalLinks, imageUrls, videoUrl, notes } = req.body;
-  const client = await pool.connect();
+// GET single task by id — MUST be LAST among /api/tasks/* routes
+app.get('/api/tasks/:id', async (req, res) => {
+  const { id } = req.params;
   try {
-    await client.query('BEGIN');
-    // Upsert submission
-    await client.query(
-      `INSERT INTO task_submissions (assignment_id, description, github_url, live_url, additional_links, image_urls, video_url, notes, submitted_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-       ON CONFLICT (assignment_id) DO UPDATE SET
-         description = EXCLUDED.description,
-         github_url = EXCLUDED.github_url,
-         live_url = EXCLUDED.live_url,
-         additional_links = EXCLUDED.additional_links,
-         image_urls = EXCLUDED.image_urls,
-         video_url = EXCLUDED.video_url,
-         notes = EXCLUDED.notes,
-         submitted_at = NOW()`,
-      [assignmentId, description, githubUrl, liveUrl, JSON.stringify(additionalLinks || []), JSON.stringify(imageUrls || []), videoUrl, notes]
-    );
-    // Update assignment status to completed
-    await client.query(
-      `UPDATE task_assignments SET status = 'completed' WHERE id = $1`,
-      [assignmentId]
-    );
-    await client.query('COMMIT');
-    client.release();
-    res.json({ success: true, message: 'Submission saved successfully.' });
-  } catch (err: any) {
-    await client.query('ROLLBACK');
-    client.release();
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// POST grade a task assignment
-app.post('/api/tasks/assignments/:assignmentId/grade', async (req, res) => {
-  const { assignmentId } = req.params;
-  const { score, feedback } = req.body;
-  const scoreNum = Number(score);
-  if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100) {
-    return res.status(400).json({ success: false, error: 'Score must be between 0 and 100.' });
-  }
-  try {
-    await pool.query(
-      `UPDATE task_assignments SET status = 'marked', score = $1, feedback = $2, graded_at = NOW() WHERE id = $3`,
-      [scoreNum, feedback || null, assignmentId]
-    );
-    res.json({ success: true, message: 'Task graded successfully.' });
+    const result = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Task not found' });
+    res.json({ success: true, data: result.rows[0] });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
