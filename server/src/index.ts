@@ -3,6 +3,13 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 import { supabase, pool } from './db.js';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -45,8 +52,63 @@ async function sendEmail(to: string, subject: string, html: string): Promise<boo
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Resolve absolute path to project repository root directory: d:\peronal\OmniLearn.LMS
+const rootDir = path.resolve(__dirname, '../../');
+const imagesDir = path.join(rootDir, 'images');
+
+// Ensure root images directory exists
+if (!fs.existsSync(imagesDir)) {
+  fs.mkdirSync(imagesDir, { recursive: true });
+}
+
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ limit: '15mb', extended: true }));
+
+// Serve static images folder
+app.use('/images', express.static(imagesDir));
+
+// Image Upload Endpoint (Base64 Drag & Drop)
+app.post('/api/upload', async (req, res) => {
+  const { filename, base64Data } = req.body;
+  if (!filename || !base64Data) {
+    return res.status(400).json({ success: false, error: 'filename and base64Data are required' });
+  }
+
+  try {
+    const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (!matches || matches.length !== 3) {
+      return res.status(400).json({ success: false, error: 'Invalid base64 image data format' });
+    }
+
+    const imageBuffer = Buffer.from(matches[2], 'base64');
+    
+    // Sanitize filename to prevent directory traversal attacks
+    const safeFilename = Date.now() + '_' + path.basename(filename).replace(/[^a-zA-Z0-9.\-_]/g, '');
+    const targetPath = path.join(imagesDir, safeFilename);
+
+    // Save image to filesystem folder
+    fs.writeFileSync(targetPath, imageBuffer);
+
+    // Run programmatical git push asynchronously to save in GitHub repository
+    const gitCmd = `git add images/${safeFilename} && git commit -m "Upload image ${safeFilename}" && git push`;
+    exec(gitCmd, { cwd: rootDir }, (gitErr, stdout, stderr) => {
+      if (gitErr) {
+        console.error('Programmatic git push error:', gitErr);
+      } else {
+        console.log('Programmatic git push success:', stdout);
+      }
+    });
+
+    // Return the URL to display/render the image
+    const API_BASE_URL = process.env.API_BASE_URL || `http://localhost:${PORT}`;
+    const fileUrl = `${API_BASE_URL}/images/${safeFilename}`;
+    
+    res.json({ success: true, url: fileUrl });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // Root route
 app.get('/', (req, res) => {

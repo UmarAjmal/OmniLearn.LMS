@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import DragDropUploader from "@/components/DragDropUploader";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
@@ -408,20 +409,10 @@ export default function SubmitTaskPage() {
                   <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">
                     Screenshot / Image Proofs
                   </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      placeholder="https://i.imgur.com/your-screenshot.png"
-                      value={newImageUrl}
-                      onChange={(e) => setNewImageUrl(e.target.value)}
-                      className="flex-1 bg-[#0a1426]/60 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-primary/50 text-xs font-medium"
-                    />
-                    <button
-                      type="button"
-                      onClick={addImage}
-                      className="bg-primary/10 border border-primary/20 text-primary px-4 py-3 rounded-lg font-bold text-xs uppercase cursor-pointer"
-                    >Attach</button>
-                  </div>
+                  <DragDropUploader
+                    onUploadSuccess={(url) => setImageUrls(prev => [...prev, url])}
+                    label="Drag &amp; Drop Proof Screenshot or Click to Browse"
+                  />
                   {imageUrls.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       {imageUrls.map((url, i) => (

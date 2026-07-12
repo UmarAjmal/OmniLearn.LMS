@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import DragDropUploader from "@/components/DragDropUploader";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
@@ -341,14 +342,27 @@ export default function StudentProfilePage() {
                 </p>
               </div>
               <div>
-                <FieldLabel>Display Picture (DP) Image URL</FieldLabel>
-                <input
-                  type="url"
-                  value={avatarUrl}
-                  onChange={e => setAvatarUrl(e.target.value)}
-                  placeholder="https://imgur.com/image.png"
-                  className={inputCls}
-                />
+                <FieldLabel>Display Picture (DP) Image</FieldLabel>
+                {avatarUrl ? (
+                  <div className="flex items-center gap-4 bg-white/[0.02] border border-white/5 p-3 rounded-xl">
+                    <img src={avatarUrl} alt="Avatar Preview" className="w-16 h-16 rounded-full object-cover border border-white/10" />
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-white">Avatar Uploaded</p>
+                      <button
+                        type="button"
+                        onClick={() => setAvatarUrl("")}
+                        className="text-[10px] text-red-400 hover:text-red-300 font-semibold uppercase tracking-wider mt-1 block"
+                      >
+                        Remove &amp; Upload Different
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <DragDropUploader
+                    onUploadSuccess={(url) => setAvatarUrl(url)}
+                    label="Drag &amp; Drop DP or Click to Browse"
+                  />
+                )}
               </div>
             </div>
 
