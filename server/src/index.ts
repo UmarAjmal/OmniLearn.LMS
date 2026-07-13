@@ -4,14 +4,52 @@ import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 import { supabase, pool } from './db.js';
 import path from 'path';
-import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { exec } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config();
+
+// ==========================================
+// GitHub Image Upload Configuration
+// ==========================================
+const GITHUB_OWNER = 'UmarAjmal';
+const GITHUB_REPO = 'OmniLearn.LMS';
+const GITHUB_BRANCH = 'main';
+const GITHUB_IMAGES_FOLDER = 'images';
+
+async function uploadToGitHub(safeFilename: string, base64Content: string): Promise<string> {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    throw new Error('GITHUB_TOKEN environment variable is not set. Cannot upload images.');
+  }
+
+  const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_IMAGES_FOLDER}/${safeFilename}`;
+
+  const response = await fetch(apiUrl, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/vnd.github.v3+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    },
+    body: JSON.stringify({
+      message: `Upload image: ${safeFilename}`,
+      content: base64Content,
+      branch: GITHUB_BRANCH
+    })
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`GitHub API error (${response.status}): ${errorBody}`);
+  }
+
+  // Return the raw.githubusercontent URL for serving the image
+  return `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${GITHUB_IMAGES_FOLDER}/${safeFilename}`;
+}
 
 // ==========================================
 // EMAIL TRANSPORTER (Nodemailer + Gmail SMTP)
@@ -52,23 +90,13 @@ async function sendEmail(to: string, subject: string, html: string): Promise<boo
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Resolve absolute path to project repository root directory: d:\peronal\OmniLearn.LMS
-const rootDir = path.resolve(__dirname, '../../');
-const imagesDir = path.join(rootDir, 'images');
-
-// Ensure root images directory exists
-if (!fs.existsSync(imagesDir)) {
-  fs.mkdirSync(imagesDir, { recursive: true });
-}
-
 app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
 
-// Serve static images folder
-app.use('/images', express.static(imagesDir));
-
-// Image Upload Endpoint (Base64 Drag & Drop)
+// ==========================================
+// Image Upload Endpoint — GitHub Contents API
+// ==========================================
 app.post('/api/upload', async (req, res) => {
   const { filename, base64Data } = req.body;
   if (!filename || !base64Data) {
@@ -76,36 +104,23 @@ app.post('/api/upload', async (req, res) => {
   }
 
   try {
+    // Extract pure base64 content (strip the data:image/...;base64, prefix)
     const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
     if (!matches || matches.length !== 3) {
       return res.status(400).json({ success: false, error: 'Invalid base64 image data format' });
     }
 
-    const imageBuffer = Buffer.from(matches[2], 'base64');
-    
-    // Sanitize filename to prevent directory traversal attacks
+    const pureBase64 = matches[2];
+
+    // Sanitize filename
     const safeFilename = Date.now() + '_' + path.basename(filename).replace(/[^a-zA-Z0-9.\-_]/g, '');
-    const targetPath = path.join(imagesDir, safeFilename);
 
-    // Save image to filesystem folder
-    fs.writeFileSync(targetPath, imageBuffer);
+    // Upload via GitHub Contents API (creates a commit in the repo)
+    const imageUrl = await uploadToGitHub(safeFilename, pureBase64);
 
-    // Run programmatical git push asynchronously to save in GitHub repository
-    const gitCmd = `git add images/${safeFilename} && git commit -m "Upload image ${safeFilename}" && git push`;
-    exec(gitCmd, { cwd: rootDir }, (gitErr, stdout, stderr) => {
-      if (gitErr) {
-        console.error('Programmatic git push error:', gitErr);
-      } else {
-        console.log('Programmatic git push success:', stdout);
-      }
-    });
-
-    // Return the URL to display/render the image
-    const API_BASE_URL = process.env.API_BASE_URL || `http://localhost:${PORT}`;
-    const fileUrl = `${API_BASE_URL}/images/${safeFilename}`;
-    
-    res.json({ success: true, url: fileUrl });
+    res.json({ success: true, url: imageUrl });
   } catch (err: any) {
+    console.error('❌ Image upload error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });
