@@ -1,304 +1,242 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { toast } from "react-toastify";
+import { useRouter } from "next/navigation";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
-export default function Dashboard() {
-  const [courses, setCourses] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+interface AdminStats {
+  students: number;
+  trainers: number;
+  courses: number;
+  activeTasks: number;
+  pendingRegistrations: number;
+  submissions: number;
+  todayAttendance: number;
+  admissionsWeekly: { day: string; count: string }[];
+  taskCompletion: { pending: string; completed: string; marked: string };
+}
 
-  useEffect(() => {
-    const fetchCourses = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/courses`);
-        const json = await response.json();
-        if (json.success) {
-          setCourses(json.data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch courses:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchCourses();
-  }, []);
+function StatCard({ icon, label, value, sub, accent, href }: { icon: string; label: string; value: string | number; sub?: string; accent?: string; href?: string }) {
+  const Inner = (
+    <div className={`bg-[#101827] border border-white/[0.06] rounded-2xl p-5 hover:border-white/10 transition-all group ${href ? "cursor-pointer hover:shadow-lg" : ""}`}>
+      <div className="flex items-start justify-between mb-4">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${accent || "bg-[#F6B32B]/10"}`}>
+          <span className="material-symbols-outlined text-[20px]" style={{ color: accent ? "white" : "#F6B32B", fontVariationSettings: "'FILL' 1" }}>{icon}</span>
+        </div>
+        {href && <span className="material-symbols-outlined text-white/20 group-hover:text-white/40 transition-colors text-[18px]">arrow_forward</span>}
+      </div>
+      <p className="text-3xl font-bold text-white mb-1">{value}</p>
+      <p className="text-xs font-semibold text-white/40 uppercase tracking-wider">{label}</p>
+      {sub && <p className="text-[11px] text-white/25 mt-1">{sub}</p>}
+    </div>
+  );
+  return href ? <Link href={href}>{Inner}</Link> : Inner;
+}
 
-  useEffect(() => {
-    // Show toast after 2 seconds
-    const timer = setTimeout(() => {
-      toast(
-        <div className="flex items-center gap-4">
-          <span className="material-symbols-outlined text-gold-accent text-2xl">
-            emoji_events
-          </span>
-          <div>
-            <p className="text-sm font-bold text-white">Daily Streak Active!</p>
-            <p className="text-xs text-on-surface-variant">
-              You've logged in 5 days in a row.
-            </p>
+// Mini bar chart
+function BarChart({ data, label }: { data: { day: string; count: string }[]; label: string }) {
+  const max = Math.max(...data.map((d) => parseInt(d.count) || 0), 1);
+  return (
+    <div>
+      <p className="text-xs font-bold text-white/40 uppercase tracking-wider mb-4">{label}</p>
+      <div className="flex items-end gap-2 h-24">
+        {data.length === 0 ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <p className="text-white/20 text-sm">No data yet</p>
           </div>
-        </div>,
-        {
-          className: "glass-card border-l-4 border-gold-accent",
-          autoClose: 5000,
-          hideProgressBar: true,
-        }
-      );
-    }, 2000);
+        ) : data.map((d, i) => {
+          const height = Math.round(((parseInt(d.count) || 0) / max) * 100);
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+              <span className="text-[10px] text-white/40">{d.count}</span>
+              <div className="w-full rounded-t-md bg-gradient-to-t from-[#F6B32B] to-[#E09B18] transition-all" style={{ height: `${Math.max(height, 4)}%` }} />
+              <span className="text-[9px] text-white/25">{new Date(d.day).toLocaleDateString("en", { weekday: "short" })}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-    return () => clearTimeout(timer);
-  }, []);
+// Donut chart
+function DonutChart({ pending, completed, marked }: { pending: number; completed: number; marked: number }) {
+  const total = pending + completed + marked || 1;
+  const pPct = Math.round((pending / total) * 100);
+  const cPct = Math.round((completed / total) * 100);
+  const mPct = Math.round((marked / total) * 100);
+
+  const r = 40;
+  const circ = 2 * Math.PI * r;
+  let offset = 0;
+  const slices = [
+    { pct: pending / total, color: "#6366f1", label: "Pending", count: pending },
+    { pct: completed / total, color: "#F6B32B", label: "Submitted", count: completed },
+    { pct: marked / total, color: "#22c55e", label: "Reviewed", count: marked },
+  ];
 
   return (
-    <>
-      {/* Hero Welcome */}
-      <section className="mb-10">
-        <h1 className="text-display-lg font-display-lg text-primary mb-2 text-4xl font-bold">
-          Welcome back, Alexander
-        </h1>
-        <p className="text-body-lg text-on-surface-variant max-w-2xl font-light">
-          You've completed 75% of your weekly learning goals. Keep it up and
-          earn your "Data Architect" badge by Friday.
+    <div className="flex items-center gap-6">
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        {slices.map((slice, i) => {
+          const len = slice.pct * circ;
+          const el = (
+            <circle
+              key={i}
+              cx="50" cy="50" r={r}
+              fill="none"
+              stroke={slice.color}
+              strokeWidth="12"
+              strokeDasharray={`${len} ${circ - len}`}
+              strokeDashoffset={-offset}
+              transform="rotate(-90 50 50)"
+              strokeLinecap="round"
+            />
+          );
+          offset += len;
+          return el;
+        })}
+        <text x="50" y="53" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">{total}</text>
+      </svg>
+      <div className="space-y-2">
+        {slices.map((s) => (
+          <div key={s.label} className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+            <span className="text-xs text-white/50">{s.label}</span>
+            <span className="text-xs font-bold text-white ml-auto">{s.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function AdminDashboardPage() {
+  const router = useRouter();
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchStats = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/admin-stats`);
+      const json = await res.json();
+      if (json.success) setStats(json.data);
+    } catch (err) {
+      console.error("Failed to load admin stats:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const role = localStorage.getItem("lms_user_role");
+    if (role !== "admin") { router.push("/"); return; }
+    fetchStats();
+  }, [fetchStats, router]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full border-2 border-[#F6B32B]/20 border-t-[#F6B32B] animate-spin" />
+      </div>
+    );
+  }
+
+  const taskPending = parseInt(stats?.taskCompletion?.pending as string) || 0;
+  const taskCompleted = parseInt(stats?.taskCompletion?.completed as string) || 0;
+  const taskMarked = parseInt(stats?.taskCompletion?.marked as string) || 0;
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">Admin Dashboard</h1>
+        <p className="text-white/40 text-sm">
+          {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} — System Overview
         </p>
-      </section>
+      </div>
 
-      {/* Bento Grid Stats & Progress */}
-      <div className="grid grid-cols-12 gap-6 mb-10">
-        {/* Circular Progress Card */}
-        <div className="col-span-12 lg:col-span-4 glass-card rounded-lg p-8 flex flex-col items-center justify-center">
-          <h3 className="text-headline-md font-headline-md text-primary mb-6 w-full text-xl font-bold">
-            Current Progress
-          </h3>
-          <div className="relative w-48 h-48 mb-6">
-            <svg className="w-full h-full transform -rotate-90">
-              <circle
-                className="text-white/5"
-                cx="96"
-                cy="96"
-                fill="transparent"
-                r="88"
-                stroke="currentColor"
-                strokeWidth="8"
-              ></circle>
-              <circle
-                className="text-gold-accent drop-shadow-[0_0_8px_rgba(252,163,17,0.5)]"
-                cx="96"
-                cy="96"
-                fill="transparent"
-                r="88"
-                stroke="currentColor"
-                strokeDasharray="552.92"
-                strokeDashoffset="138.23"
-                strokeWidth="12"
-              ></circle>
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-4xl font-bold text-white">75%</span>
-              <span className="text-xs text-on-surface-variant uppercase tracking-widest mt-1">
-                Mastery
-              </span>
-            </div>
+      {/* Primary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+        <StatCard icon="school" label="Students" value={stats?.students ?? 0} href="/students" />
+        <StatCard icon="badge" label="Trainers" value={stats?.trainers ?? 0} href="/dashboard/trainers" accent="bg-blue-500/15" />
+        <StatCard icon="menu_book" label="Courses" value={stats?.courses ?? 0} href="/courses" accent="bg-purple-500/15" />
+        <StatCard icon="assignment" label="Active Tasks" value={stats?.activeTasks ?? 0} accent="bg-orange-500/15" />
+        <StatCard icon="how_to_reg" label="Pending Admissions" value={stats?.pendingRegistrations ?? 0} href="/students/applicants" accent="bg-red-500/15" sub="Require review" />
+        <StatCard icon="task_alt" label="Submissions" value={stats?.submissions ?? 0} accent="bg-emerald-500/15" />
+        <StatCard icon="event_available" label="Present Today" value={stats?.todayAttendance ?? 0} sub="Students present" />
+        <StatCard icon="verified" label="System Status" value="Online" sub="All services running" accent="bg-emerald-500/15" />
+      </div>
+
+      {/* Charts row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {/* Weekly Admissions Bar Chart */}
+        <div className="bg-[#101827] border border-white/[0.06] rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-base font-bold text-white">Weekly Admissions</h2>
+            <Link href="/students/applicants" className="text-[#F6B32B] text-xs font-semibold hover:underline">View all →</Link>
           </div>
-          <p className="text-center text-sm text-on-surface-variant">
-            Advanced Cloud Architecture • Module 4
-          </p>
+          <BarChart data={stats?.admissionsWeekly ?? []} label="Applications received (last 7 days)" />
         </div>
 
-        {/* Learning Velocity Card */}
-        <div className="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-lg p-8">
-          <div className="flex justify-between items-start mb-8">
-            <h3 className="text-headline-md font-headline-md text-primary text-xl font-bold">
-              Learning Velocity
-            </h3>
-            <span
-              className="material-symbols-outlined text-gold-accent"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              trending_up
-            </span>
+        {/* Task Completion Donut */}
+        <div className="bg-[#101827] border border-white/[0.06] rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-base font-bold text-white">Task Completion</h2>
+            <Link href="/tasks/completed" className="text-[#F6B32B] text-xs font-semibold hover:underline">View all →</Link>
           </div>
-          <div className="space-y-6">
-            <div className="flex items-end gap-2 h-32 px-2">
-              <div className="flex-1 bg-white/10 rounded-t-lg h-[40%] hover:bg-gold-accent/20 transition-all cursor-pointer"></div>
-              <div className="flex-1 bg-white/10 rounded-t-lg h-[65%] hover:bg-gold-accent/20 transition-all cursor-pointer"></div>
-              <div className="flex-1 bg-gold-accent/80 rounded-t-lg h-[85%] hover:bg-gold-accent transition-all cursor-pointer"></div>
-              <div className="flex-1 bg-white/10 rounded-t-lg h-[55%] hover:bg-gold-accent/20 transition-all cursor-pointer"></div>
-              <div className="flex-1 bg-white/10 rounded-t-lg h-[75%] hover:bg-gold-accent/20 transition-all cursor-pointer"></div>
-              <div className="flex-1 bg-white/10 rounded-t-lg h-[95%] hover:bg-gold-accent/20 transition-all cursor-pointer"></div>
-              <div className="flex-1 bg-white/10 rounded-t-lg h-[45%] hover:bg-gold-accent/20 transition-all cursor-pointer"></div>
-            </div>
-            <div className="flex justify-between text-xs text-on-surface-variant font-medium">
-              <span>MON</span>
-              <span>TUE</span>
-              <span>WED</span>
-              <span>THU</span>
-              <span>FRI</span>
-              <span>SAT</span>
-              <span>SUN</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Schedule / Upcoming Card */}
-        <div className="col-span-12 md:col-span-6 lg:col-span-4 glass-card rounded-lg p-8">
-          <h3 className="text-headline-md font-headline-md text-primary mb-6 text-xl font-bold">
-            Upcoming Lessons
-          </h3>
-          <div className="space-y-5 custom-scrollbar overflow-y-auto max-h-[220px] pr-2">
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all group">
-              <div className="w-12 h-12 rounded-lg bg-navy-accent flex items-center justify-center shrink-0 border border-white/10 group-hover:border-gold-accent/30 transition-all">
-                <span className="material-symbols-outlined text-gold-accent">
-                  video_library
-                </span>
-              </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-semibold text-white">
-                  Live Webinar: Kubernetes
-                </h4>
-                <p className="text-xs text-on-surface-variant mt-1">
-                  Today • 14:00 - 15:30
-                </p>
-              </div>
-              <span className="material-symbols-outlined text-on-surface-variant group-hover:text-gold-accent">
-                arrow_forward_ios
-              </span>
-            </div>
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all group border-l-2 border-gold-accent">
-              <div className="w-12 h-12 rounded-lg bg-navy-accent flex items-center justify-center shrink-0 border border-white/10 group-hover:border-gold-accent/30 transition-all">
-                <span className="material-symbols-outlined text-gold-accent">
-                  quiz
-                </span>
-              </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-semibold text-white">
-                  Final Exam: Python Scripting
-                </h4>
-                <p className="text-xs text-on-surface-variant mt-1">
-                  Tomorrow • 09:00 AM
-                </p>
-              </div>
-              <span className="material-symbols-outlined text-on-surface-variant group-hover:text-gold-accent">
-                arrow_forward_ios
-              </span>
-            </div>
-            <div className="flex items-center gap-4 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all group">
-              <div className="w-12 h-12 rounded-lg bg-navy-accent flex items-center justify-center shrink-0 border border-white/10 group-hover:border-gold-accent/30 transition-all">
-                <span className="material-symbols-outlined text-gold-accent">
-                  edit_document
-                </span>
-              </div>
-              <div className="flex-1">
-                <h4 className="text-sm font-semibold text-white">
-                  Architecture Peer Review
-                </h4>
-                <p className="text-xs text-on-surface-variant mt-1">
-                  Aug 24 • 11:30 AM
-                </p>
-              </div>
-              <span className="material-symbols-outlined text-on-surface-variant group-hover:text-gold-accent">
-                arrow_forward_ios
-              </span>
-            </div>
-          </div>
+          <DonutChart pending={taskPending} completed={taskCompleted} marked={taskMarked} />
+          {(taskPending + taskCompleted + taskMarked) === 0 && (
+            <p className="text-white/30 text-sm text-center mt-4">No task data yet</p>
+          )}
         </div>
       </div>
 
-      {/* Recommended Courses Section */}
-      <section>
-        <div className="flex justify-between items-end mb-6">
-          <div>
-            <h2 className="text-headline-lg font-headline-lg text-primary text-2xl font-bold">
-              Recommended for You
-            </h2>
-            <p className="text-on-surface-variant text-body-md mt-1 font-light">
-              Based on your recent interest in System Design and Scalability.
-            </p>
-          </div>
-          <Link href="/courses">
-            <button className="text-gold-accent font-semibold hover:underline flex items-center gap-1 transition-all cursor-pointer">
-              Browse All Courses
-              <span className="material-symbols-outlined text-sm">
-                open_in_new
-              </span>
-            </button>
-          </Link>
+      {/* Quick Actions */}
+      <div className="mb-8">
+        <h2 className="text-base font-bold text-white mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { href: "/students/applicants", icon: "how_to_reg", label: "Review Admissions", color: "from-[#F6B32B] to-[#E09B18]", text: "text-black" },
+            { href: "/dashboard/trainers", icon: "person_add", label: "Add Trainer", color: "from-blue-600 to-blue-500", text: "text-white" },
+            { href: "/tasks/new", icon: "add_task", label: "Assign Task", color: "from-purple-600 to-purple-500", text: "text-white" },
+            { href: "/dashboard/announcements", icon: "campaign", label: "Announce", color: "from-emerald-600 to-emerald-500", text: "text-white" },
+          ].map((action) => (
+            <Link
+              key={action.href}
+              href={action.href}
+              className={`bg-gradient-to-br ${action.color} rounded-2xl p-5 flex flex-col gap-2 hover:scale-[1.02] transition-transform shadow-lg`}
+            >
+              <span className={`material-symbols-outlined text-2xl ${action.text}`} style={{ fontVariationSettings: "'FILL' 1" }}>{action.icon}</span>
+              <span className={`text-sm font-bold ${action.text}`}>{action.label}</span>
+            </Link>
+          ))}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {isLoading ? (
-            <div className="col-span-3 text-center py-12">
-              <div className="w-10 h-10 border-4 border-gold-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-              <p className="text-on-surface-variant text-sm">Loading premium courses...</p>
-            </div>
-          ) : courses.length === 0 ? (
-            <div className="col-span-3 text-center py-12 border border-dashed border-white/10 rounded-xl bg-white/5">
-              <span className="material-symbols-outlined text-4xl text-on-surface-variant mb-2 block">school</span>
-              <p className="text-white font-bold text-base">No courses created yet</p>
-              <p className="text-on-surface-variant text-xs mt-1">Get started by clicking the "New Course" button in the sidebar.</p>
-            </div>
-          ) : (
-            courses.map((course) => (
-              <div key={course.id} className="glass-card rounded-lg overflow-hidden flex flex-col group hover:translate-y-[-4px] transition-all duration-300">
-                <div className="h-48 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10"></div>
-                  <img
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                    src={course.thumbnail_url || "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=600&auto=format&fit=crop"}
-                    alt={course.title}
-                  />
-                  <div className="absolute bottom-4 left-4 z-20 flex gap-2">
-                    <span className="px-3 py-1 bg-gold-accent text-black text-[10px] font-bold uppercase rounded-full tracking-wider">
-                      {course.category || "Technology"}
-                    </span>
-                    {course.status === "draft" ? (
-                      <span className="px-3 py-1 bg-amber-500/20 text-amber-300 text-[10px] font-bold uppercase rounded-full tracking-wider">
-                        Draft
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold uppercase rounded-full tracking-wider">
-                        {course.lessons_count || 0} Lessons
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="p-6 flex flex-col flex-1">
-                  <Link href={`/courses/${course.id}`}>
-                    <h3 className="text-body-lg font-semibold text-white mb-2 line-clamp-1 hover:text-primary transition-colors cursor-pointer">
-                      {course.title}
-                    </h3>
-                  </Link>
-                  <p className="text-sm text-on-surface-variant line-clamp-2 mb-6 font-light">
-                    {course.description || "No description provided yet."}
-                  </p>
-                  <div className="mt-auto flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-cream-accent/20 flex items-center justify-center">
-                        <span
-                          className="material-symbols-outlined text-xs text-cream-accent"
-                          style={{ fontVariationSettings: "'FILL' 1" }}
-                        >
-                          star
-                        </span>
-                      </div>
-                      <span className="text-xs font-semibold text-cream-accent">
-                        4.9 ({100 + (course.id % 5) * 45})
-                      </span>
-                    </div>
-                    <Link href={course.status === "draft" ? `/courses/create` : `/courses/${course.id}`}>
-                      <button className="bg-gold-accent hover:bg-gold-accent/90 text-black px-4 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 cursor-pointer">
-                        {course.status === "draft" ? "Edit Draft" : "Start Learning"}
-                      </button>
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+      </div>
+
+      {/* Courses list */}
+      <div className="bg-[#101827] border border-white/[0.06] rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-bold text-white">Learning Tracks</h2>
+          <Link href="/courses" className="text-[#F6B32B] text-xs font-semibold hover:underline">Manage →</Link>
         </div>
-      </section>
-    </>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { id: "fullstack-ai", label: "Full Stack AI Engineer", icon: "smart_toy", color: "bg-purple-500/10 text-purple-400" },
+            { id: "web-dev", label: "Web Development", icon: "code", color: "bg-blue-500/10 text-blue-400" },
+            { id: "app-dev", label: "App Development", icon: "phone_android", color: "bg-emerald-500/10 text-emerald-400" },
+            { id: "devops", label: "DevOps", icon: "cloud_sync", color: "bg-orange-500/10 text-orange-400" },
+          ].map((track) => (
+            <div key={track.id} className={`${track.color} rounded-xl px-4 py-3 border border-current/20`}>
+              <span className="material-symbols-outlined text-2xl block mb-1" style={{ fontVariationSettings: "'FILL' 1" }}>{track.icon}</span>
+              <p className="text-xs font-semibold">{track.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

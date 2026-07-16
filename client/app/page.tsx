@@ -1,285 +1,291 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
-
-export default function LoginPage() {
+export default function LandingPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Parallax coordinates state
   const [parallax, setParallax] = useState({ x: 0, y: 0 });
+  const [mounted, setMounted] = useState(false);
+  const heroRef = useRef<HTMLDivElement>(null);
 
-  // Handle cursor mouse-move parallax effect
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      const x = (e.clientX / window.innerWidth - 0.5) * 30;
-      const y = (e.clientY / window.innerHeight - 0.5) * 30;
+      const x = (e.clientX / window.innerWidth - 0.5) * 20;
+      const y = (e.clientY / window.innerHeight - 0.5) * 20;
       setParallax({ x, y });
     };
-
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
-  // Handle login verification
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+  const stats = [
+    { icon: "verified", label: "99.99% Uptime", delay: "animation-delay-200" },
+    { icon: "support_agent", label: "24/7 Support", delay: "animation-delay-300" },
+    { icon: "cloud_done", label: "Secure Cloud Infrastructure", delay: "animation-delay-400" },
+    { icon: "psychology", label: "Smart Learning Experience", delay: "animation-delay-500" },
+  ];
 
-    if (!email.trim() || !password.trim()) {
-      toast.warning("Please fill in all credential fields.");
-      setIsSubmitting(false);
-      return;
-    }
-
-    // Offline Admin Fallback
-    const isOfflineAdmin = (email === "admin" || email === "admin@enterprise.com") && password === "admin123";
-    if (isOfflineAdmin) {
-      localStorage.setItem("lms_auth", "true");
-      localStorage.setItem("lms_user_role", "admin");
-      toast.success("Welcome back, Senior Administrator!");
-      router.push("/dashboard");
-      setIsSubmitting(false);
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        toast.error(json.error || "Invalid username or password.");
-      } else {
-        localStorage.setItem("lms_auth", "true");
-        localStorage.setItem("lms_user_role", json.user.role);
-        localStorage.setItem("lms_user_id", String(json.user.id));
-        
-        if (json.user.role === "student") {
-          if (json.user.student) {
-            localStorage.setItem("lms_student_info", JSON.stringify(json.user.student));
-          }
-          toast.success("Login successful. Welcome to Student Portal!");
-          router.push("/student/dashboard");
-        } else {
-          toast.success("Login successful. Welcome back, Administrator!");
-          router.push("/dashboard");
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Network error. Could not connect to authentication server.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleMockSSO = (provider: string) => {
-    toast.info(`Executive SSO authentication with ${provider} launched in mock environment.`);
-  };
+  const cards = [
+    { icon: "school", label: "Learn Anywhere", sub: "Access courses from any device", delay: "animation-delay-300" },
+    { icon: "menu_book", label: "Build Your Future", sub: "Expert-led curriculum", delay: "animation-delay-400" },
+    { icon: "rocket_launch", label: "Unlock Your Potential", sub: "Skill-based progression", delay: "animation-delay-500" },
+    { icon: "public", label: "Modern Digital Education", sub: "Next-gen LMS platform", delay: "animation-delay-600" },
+  ];
 
   return (
-    <div className="bg-[#000000] relative overflow-hidden min-h-screen flex items-center justify-center p-6 md:p-16">
-      {/* Atmospheric Background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        {/* Floating Shape 1 */}
+    <div
+      className="relative min-h-screen overflow-hidden flex items-center justify-center p-4 md:p-8"
+      style={{ background: "#090D16" }}
+    >
+      {/* ── Atmospheric Background ── */}
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+        {/* Large gold blob top-left */}
         <div
-          className="absolute -top-1/4 -left-1/4 w-[600px] h-[600px] rounded-full bg-primary/10 blur-[90px] transition-transform duration-300 ease-out"
-          style={{ transform: `translate(${parallax.x}px, ${parallax.y}px)` }}
+          className="absolute -top-40 -left-40 w-[700px] h-[700px] rounded-full opacity-[0.07] blur-[120px] animate-pulse-glow"
+          style={{
+            background: "radial-gradient(circle, #F6B32B 0%, transparent 70%)",
+            transform: `translate(${parallax.x * 0.5}px, ${parallax.y * 0.5}px)`,
+            transition: "transform 0.4s ease-out",
+          }}
         />
-        {/* Floating Shape 2 */}
+        {/* Blue blob bottom-right */}
         <div
-          className="absolute -bottom-1/4 -right-1/4 w-[650px] h-[650px] rounded-full bg-navy-accent/35 blur-[95px] transition-transform duration-300 ease-out"
-          style={{ transform: `translate(${-parallax.x}px, ${-parallax.y}px)` }}
+          className="absolute -bottom-40 -right-40 w-[600px] h-[600px] rounded-full opacity-[0.06] blur-[120px] animate-pulse-glow animation-delay-1000"
+          style={{
+            background: "radial-gradient(circle, #3B82F6 0%, transparent 70%)",
+            transform: `translate(${-parallax.x * 0.4}px, ${-parallax.y * 0.4}px)`,
+            transition: "transform 0.4s ease-out",
+          }}
         />
-        {/* Radial center overlay */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[850px] h-[850px] bg-radial from-navy-accent/15 to-transparent opacity-60" />
+        {/* Subtle grid pattern */}
+        <div
+          className="absolute inset-0 opacity-[0.025]"
+          style={{
+            backgroundImage: `linear-gradient(rgba(246,179,43,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(246,179,43,0.5) 1px, transparent 1px)`,
+            backgroundSize: "60px 60px",
+          }}
+        />
       </div>
 
-      {/* Centered Login Container */}
-      <div className="relative z-10 w-full max-w-[1100px] grid md:grid-cols-2 bg-[#14213D]/25 backdrop-blur-[25px] border border-white/10 rounded-xl overflow-hidden shadow-2xl shadow-black/80">
-        {/* Visual Side Banner (Hidden on Mobile) */}
-        <div className="hidden md:block relative overflow-hidden group">
-          <img
-            alt="Lumina Elite Entrance"
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBuJnOr974T3BpLntZlyP7p98NZNQq18hdAt3pBpsI_5tpHL4oXJDDX6uN-sK6SgMOYRyXI9ApaPxfAVVkpxE4VPTzf59kDn-B9uTzTnRhbIVpkY6k6hK9le45LStxtb9RrvoDMeaGrK6cFW7wQE2U60kXv7xARiJlKe5AaClBEU6Re1h7oGvreoV38F2vtNDUTNtqS53gsnyYabY075VzuBQAsyNZ2WanbPYUhqatPMU9AyaweVIm5Bh_FoyLV9DtUBZ0TcCtuxi9A"
+      {/* ── Main Container ── */}
+      <div
+        ref={heroRef}
+        className="relative z-10 w-full max-w-[1200px] grid lg:grid-cols-2 rounded-2xl overflow-hidden shadow-[0_32px_80px_rgba(0,0,0,0.7)]"
+        style={{
+          background: "rgba(16, 24, 39, 0.55)",
+          backdropFilter: "blur(32px)",
+          WebkitBackdropFilter: "blur(32px)",
+          border: "1px solid rgba(255,255,255,0.07)",
+        }}
+      >
+        {/* ══════════════════════════════
+            LEFT PANEL — Branding
+            ══════════════════════════════ */}
+        <div className="relative p-8 md:p-12 flex flex-col justify-between overflow-hidden min-h-[520px]">
+          {/* Floating decorative shapes */}
+          <div
+            className="absolute top-12 right-10 w-48 h-48 rounded-full border border-yellow-400/10 animate-spin-slow pointer-events-none"
+            style={{ transform: `translate(${parallax.x * 0.3}px, ${parallax.y * 0.3}px)`, transition: "transform 0.5s ease-out" }}
           />
-          <div className="absolute inset-0 bg-gradient-to-tr from-[#000000]/90 via-[#000000]/40 to-transparent"></div>
-          <div className="absolute bottom-12 left-12 right-12">
-            <h1 className="font-headline font-bold text-4xl text-white mb-3">Lumina Elite</h1>
-            <p className="text-on-surface-variant text-sm font-light leading-relaxed max-w-md">
-              The pinnacle of professional academic excellence and executive learning management.
+          <div
+            className="absolute bottom-20 left-8 w-28 h-28 rounded-full border border-blue-500/10 animate-float pointer-events-none"
+          />
+          <div
+            className="absolute top-1/2 right-4 w-16 h-16 rounded-xl border border-yellow-400/8 rotate-45 animate-float-reverse pointer-events-none"
+          />
+          {/* Gold glow orb */}
+          <div className="absolute top-1/3 left-1/3 w-64 h-64 rounded-full blur-[80px] opacity-10 animate-pulse-glow pointer-events-none"
+            style={{ background: "radial-gradient(circle, #F6B32B, transparent)" }} />
+
+          {/* Logo + Brand */}
+          <div className={`relative z-10 ${mounted ? "animate-slide-in-left" : "opacity-0"}`}>
+            <div className="flex items-center gap-4 mb-8">
+              {/* Falcon Swift Logo */}
+              <div className="relative w-14 h-14 flex-shrink-0">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-[0_0_24px_rgba(246,179,43,0.4)]"
+                  style={{ background: "linear-gradient(135deg, #F6B32B 0%, #E09B18 100%)" }}>
+                  <svg viewBox="0 0 32 32" width="28" height="28" fill="none">
+                    <path d="M16 3 L28 10 L28 22 L16 29 L4 22 L4 10 Z" fill="rgba(0,0,0,0.2)" />
+                    <path d="M8 12 Q16 6 24 12 L20 16 Q16 10 12 16 Z" fill="#000" opacity="0.85"/>
+                    <path d="M10 18 L16 14 L22 18 L16 26 Z" fill="#000" opacity="0.75"/>
+                    <circle cx="16" cy="13" r="2.5" fill="#000" opacity="0.9"/>
+                  </svg>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold tracking-[0.2em] uppercase text-yellow-400/70 mb-0.5">Falcon Swift</p>
+                <p className="text-sm text-gray-400 font-light">Learning Management System</p>
+              </div>
+            </div>
+
+            {/* Hero Heading */}
+            <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight mb-4">
+              Empowering Education
+              <br />
+              <span style={{
+                background: "linear-gradient(135deg, #F6B32B 0%, #FFD97D 50%, #F6B32B 100%)",
+                backgroundSize: "200% auto",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                animation: "shimmer 3s linear infinite",
+              }}>
+                Through Innovation
+              </span>
+            </h1>
+            <p className="text-gray-400 font-light leading-relaxed text-sm max-w-sm mb-8">
+              Falcon Swift LMS provides secure, intelligent and modern education management for students, teachers and administrators.
             </p>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-3 mb-8">
+              {stats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl ${mounted ? `animate-fade-in-up ${stat.delay}` : "opacity-0"}`}
+                  style={{
+                    background: "rgba(246, 179, 43, 0.06)",
+                    border: "1px solid rgba(246, 179, 43, 0.12)",
+                  }}
+                >
+                  <span className="material-symbols-outlined text-yellow-400 text-base flex-shrink-0"
+                    style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {stat.icon}
+                  </span>
+                  <span className="text-xs font-medium text-gray-300">{stat.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Motivational Cards */}
+          <div className={`relative z-10 grid grid-cols-2 gap-3 ${mounted ? "animate-fade-in-up animation-delay-600" : "opacity-0"}`}>
+            {cards.map((card) => (
+              <div
+                key={card.label}
+                className="glass-panel-card rounded-xl p-3 cursor-default group"
+              >
+                <span className="material-symbols-outlined text-yellow-400 text-lg mb-1.5 block"
+                  style={{ fontVariationSettings: "'FILL' 1" }}>
+                  {card.icon}
+                </span>
+                <p className="text-white font-semibold text-xs leading-tight">{card.label}</p>
+                <p className="text-gray-500 text-[10px] mt-0.5 font-light">{card.sub}</p>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Form Side */}
-        <div className="flex flex-col justify-center p-8 md:p-14 bg-[#000000]/45 backdrop-blur-md">
-          <div className="w-full max-w-sm mx-auto">
+        {/* ══════════════════════════════
+            RIGHT PANEL — Role Selection
+            ══════════════════════════════ */}
+        <div
+          className="flex flex-col justify-center p-8 md:p-12"
+          style={{
+            background: "rgba(9, 13, 22, 0.6)",
+            borderLeft: "1px solid rgba(255,255,255,0.05)",
+          }}
+        >
+          <div className={`w-full max-w-sm mx-auto ${mounted ? "animate-slide-in-right" : "opacity-0"}`}>
+
             {/* Header */}
-            <div className="mb-10 text-center md:text-left">
-              <div className="inline-flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-                  <span className="material-symbols-outlined text-black font-bold font-fill">
-                    school
-                  </span>
-                </div>
-                <span className="text-xl font-headline font-bold text-primary tracking-tight">Lumina Elite</span>
+            <div className="text-center mb-10">
+              {/* Logo icon */}
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6 shadow-[0_0_28px_rgba(246,179,43,0.35)]"
+                style={{ background: "linear-gradient(135deg, #F6B32B 0%, #E09B18 100%)" }}>
+                <span className="material-symbols-outlined text-3xl text-black"
+                  style={{ fontVariationSettings: "'FILL' 1" }}>
+                  school
+                </span>
               </div>
-              <h2 className="text-2xl font-headline font-bold text-white mb-1.5">Welcome Back</h2>
-              <p className="text-xs text-on-surface-variant font-light">Access your executive dashboard.</p>
+
+              <p className="text-xs font-bold tracking-[0.25em] uppercase text-yellow-400/80 mb-2">Falcon Swift</p>
+              <h2 className="text-3xl font-extrabold text-white mb-3">Welcome Back</h2>
+              <p className="text-gray-500 text-sm font-light">
+                Access your learning dashboard securely.
+              </p>
             </div>
 
-            {/* Login Form */}
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              <div>
-                <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2 ml-4">
-                  Corporate Email
-                </label>
-                <div className="relative group transition-all">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors text-lg">
-                    mail
-                  </span>
-                  <input
-                    className="w-full bg-[#14213D]/40 border border-white/10 text-white text-sm py-3.5 pl-12 pr-4 rounded-full focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-white/20"
-                    placeholder="name@enterprise.com or admin"
-                    type="text"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-              </div>
+            {/* Role Buttons */}
+            <div className="space-y-4">
 
-              <div>
-                <div className="flex justify-between items-center mb-2 px-4">
-                  <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-                    Password
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => toast.info("Please contact administrative support for account recoveries.")}
-                    className="text-xs text-primary font-semibold hover:underline transition-all"
-                  >
-                    Forgot Password?
-                  </button>
-                </div>
-                <div className="relative group transition-all">
-                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within:text-primary transition-colors text-lg">
-                    lock
-                  </span>
-                  <input
-                    className="w-full bg-[#14213D]/40 border border-white/10 text-white text-sm py-3.5 pl-12 pr-12 rounded-full focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder:text-white/20"
-                    placeholder="••••••••"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <button
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-white transition-colors cursor-pointer select-none"
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    <span className="material-symbols-outlined text-lg">
-                      {showPassword ? "visibility_off" : "visibility"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
+              {/* Staff / Admin Button */}
               <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3.5 bg-primary text-black font-semibold text-base rounded-full shadow-[0_10px_35px_rgba(252,163,17,0.3)] hover:shadow-[0_15px_45px_rgba(252,163,17,0.5)] active:scale-95 transition-all duration-300 cursor-pointer text-center"
+                id="btn-staff-login"
+                aria-label="Login as Staff or Admin"
+                onClick={() => router.push("/login/staff")}
+                className="w-full btn-gold rounded-2xl py-4 px-6 flex items-center gap-4 text-left cursor-pointer group"
               >
-                {isSubmitting ? "Signing In..." : "Sign In"}
-              </button>
-            </form>
-
-            {/* Divider */}
-            <div className="relative my-8 flex items-center justify-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10" />
-              </div>
-              <span className="relative px-4 bg-transparent text-white/40 text-xs font-semibold uppercase tracking-wider backdrop-blur-xl">
-                Or continue with
-              </span>
-            </div>
-
-            {/* SSO Options */}
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => handleMockSSO("Google")}
-                className="flex items-center justify-center gap-3 py-2.5 px-4 rounded-full border border-white/10 hover:bg-white/5 hover:border-primary/40 transition-all group cursor-pointer"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    fill="#4285F4"
-                  />
-                  <path
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    fill="#34A853"
-                  />
-                  <path
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                    fill="#FBBC05"
-                  />
-                  <path
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                    fill="#EA4335"
-                  />
-                </svg>
-                <span className="text-xs font-semibold text-white/70 group-hover:text-primary transition-colors">
-                  Google
+                <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                  <span className="material-symbols-outlined text-black text-xl"
+                    style={{ fontVariationSettings: "'FILL' 1" }}>
+                    admin_panel_settings
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-black text-sm">Login as Staff / Admin</p>
+                  <p className="text-black/60 text-xs font-medium mt-0.5">Teachers, Admins &amp; Staff</p>
+                </div>
+                <span className="material-symbols-outlined text-black/50 text-lg group-hover:translate-x-1 transition-transform duration-300">
+                  arrow_forward
                 </span>
               </button>
+
+              {/* Student Login Button */}
               <button
-                onClick={() => handleMockSSO("Microsoft")}
-                className="flex items-center justify-center gap-3 py-2.5 px-4 rounded-full border border-white/10 hover:bg-white/5 hover:border-primary/40 transition-all group cursor-pointer"
+                id="btn-student-login"
+                aria-label="Login as Student"
+                onClick={() => router.push("/login/student")}
+                className="w-full btn-blue rounded-2xl py-4 px-6 flex items-center gap-4 text-left cursor-pointer group"
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path d="M0 0h11.2v11.2H0V0z" fill="#00A4EF" />
-                  <path d="M12.8 0H24v11.2H12.8V0z" fill="#7FBA00" />
-                  <path d="M0 12.8h11.2V24H0V12.8z" fill="#F25022" />
-                  <path d="M12.8 12.8H24V24H12.8V12.8z" fill="#FFB900" />
-                </svg>
-                <span className="text-xs font-semibold text-white/70 group-hover:text-primary transition-colors">
-                  Microsoft
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+                  <span className="material-symbols-outlined text-white text-xl"
+                    style={{ fontVariationSettings: "'FILL' 1" }}>
+                    person
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-white text-sm">Login as Student</p>
+                  <p className="text-white/50 text-xs font-medium mt-0.5">Students Portal</p>
+                </div>
+                <span className="material-symbols-outlined text-white/50 text-lg group-hover:translate-x-1 transition-transform duration-300">
+                  arrow_forward
+                </span>
+              </button>
+
+              {/* Register Button */}
+              <button
+                id="btn-student-register"
+                aria-label="Register as New Student"
+                onClick={() => router.push("/signup/student")}
+                className="w-full btn-outline rounded-2xl py-4 px-6 flex items-center gap-4 text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300"
+                  style={{ background: "rgba(246,179,43,0.08)", border: "1px solid rgba(246,179,43,0.2)" }}>
+                  <span className="material-symbols-outlined text-yellow-400 text-xl"
+                    style={{ fontVariationSettings: "'FILL' 1" }}>
+                    person_add
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-white text-sm">Register as New Student</p>
+                  <p className="text-gray-500 text-xs font-medium mt-0.5">Create your Student Account</p>
+                </div>
+                <span className="material-symbols-outlined text-gray-600 text-lg group-hover:translate-x-1 transition-transform duration-300">
+                  arrow_forward
                 </span>
               </button>
             </div>
 
             {/* Footer */}
-            <div className="mt-12 text-center text-xs text-on-surface-variant font-light space-y-4">
-              <p>
-                Don't have an account?{" "}
-                <button
-                  onClick={() => toast.info("Please contact administrative executive support for dynamic logins.")}
-                  className="text-primary font-semibold hover:underline bg-transparent border-none cursor-pointer"
-                >
-                  Contact Admin
-                </button>
-              </p>
-              <p>
-                Are you a student?{" "}
-                <button
-                  onClick={() => router.push("/signup/student")}
-                  className="text-primary font-semibold hover:underline bg-transparent border-none cursor-pointer text-sm tracking-wider"
-                >
-                  Sign Up as Student
-                </button>
-              </p>
-            </div>
+            <p className="text-center text-gray-600 text-xs mt-8 font-light">
+              © {new Date().getFullYear()} Falcon Swift LMS. All rights reserved.
+            </p>
           </div>
         </div>
       </div>

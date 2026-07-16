@@ -1403,6 +1403,771 @@ app.get('/api/tasks/:id', async (req, res) => {
   }
 });
 
+
+// ==========================================
+// TRAINER ROUTES
+// ==========================================
+
+// GET all trainers
+app.get('/api/trainers', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT tr.*, u.email, u.role
+      FROM trainers tr
+      JOIN users u ON u.id = tr.user_id
+      ORDER BY tr.created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST create trainer (Admin)
+app.post('/api/trainers', async (req, res) => {
+  const { firstName, lastName, email, phone, department, assignedCourses, password } = req.body;
+  if (!firstName || !lastName || !email) {
+    return res.status(400).json({ success: false, error: 'firstName, lastName, email are required.' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Check duplicate
+    const dup = await client.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (dup.rows.length > 0) {
+      throw new Error('A user with this email already exists.');
+    }
+    const rawPassword = password || 'FalconSwift@123';
+    const hashedPassword = await bcrypt.hash(rawPassword, 10);
+    const userRes = await client.query(
+      "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'trainer') RETURNING id",
+      [email, hashedPassword]
+    );
+    const userId = userRes.rows[0].id;
+    const employeeId = 'EMP-' + Date.now().toString().slice(-6);
+    await client.query(
+      `INSERT INTO trainers (user_id, first_name, last_name, employee_id, department, phone, assigned_courses)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::text[])`,
+      [userId, firstName, lastName, employeeId, department || '', phone || '', assignedCourses || []]
+    );
+    await client.query('COMMIT');
+    client.release();
+    // Send welcome email
+    const welcomeHtml = `
+      <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:linear-gradient(135deg,#F6B32B,#E09B18);padding:32px;text-align:center;border-radius:16px 16px 0 0;">
+          <h1 style="color:#000;margin:0;font-size:24px;">Welcome to Falcon Swift LMS!</h1>
+        </div>
+        <div style="padding:32px;background:#fff;border-radius:0 0 16px 16px;border:1px solid #e2e8f0;">
+          <p style="font-size:16px;color:#1e293b;">Dear <strong>${firstName} ${lastName}</strong>,</p>
+          <p style="color:#475569;">Your Trainer account has been created. Here are your login credentials:</p>
+          <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #F6B32B;">
+            <p style="margin:4px 0;"><strong>Email:</strong> ${email}</p>
+            <p style="margin:4px 0;"><strong>Employee ID:</strong> ${employeeId}</p>
+            <p style="margin:4px 0;"><strong>Password:</strong> ${rawPassword}</p>
+          </div>
+          <p style="color:#64748b;font-size:13px;">Please change your password after first login.</p>
+        </div>
+      </div>`;
+    await sendEmail(email, '🎓 Trainer Account Created — Falcon Swift LMS', welcomeHtml);
+    res.status(201).json({ success: true, message: 'Trainer created successfully.', employeeId });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET trainer profile by userId
+app.get('/api/trainers/profile', async (req, res) => {
+  const { userId } = req.query;
+  if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+  try {
+    const result = await pool.query(
+      'SELECT tr.*, u.email FROM trainers tr JOIN users u ON u.id = tr.user_id WHERE tr.user_id = $1',
+      [userId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Trainer not found' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT update trainer profile (self)
+app.put('/api/trainers/profile', async (req, res) => {
+  const { userId, phone, avatarUrl } = req.body;
+  if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+  try {
+    const result = await pool.query(
+      'UPDATE trainers SET phone = COALESCE($1, phone), avatar_url = COALESCE($2, avatar_url) WHERE user_id = $3 RETURNING *',
+      [phone, avatarUrl, userId]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE trainer by id (Admin)
+app.delete('/api/trainers/:id', async (req, res) => {
+  const { id } = req.params;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Get the user_id linked to this trainer
+    const trainerRes = await client.query('SELECT user_id FROM trainers WHERE id = $1', [id]);
+    if (trainerRes.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ success: false, error: 'Trainer not found.' });
+    }
+    const userId = trainerRes.rows[0].user_id;
+    // Delete trainer record
+    await client.query('DELETE FROM trainers WHERE id = $1', [id]);
+    // Delete the linked user account
+    await client.query('DELETE FROM users WHERE id = $1', [userId]);
+    await client.query('COMMIT');
+    client.release();
+    res.json({ success: true, message: 'Trainer deleted successfully.' });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET trainer stats dashboard
+app.get('/api/trainers/dashboard-stats', async (req, res) => {
+  const { userId } = req.query;
+  try {
+    const totalStudents = await pool.query('SELECT COUNT(*) FROM students');
+    const pendingReviews = await pool.query("SELECT COUNT(*) FROM task_assignments WHERE status = 'completed'");
+    const assignedTasks = await pool.query('SELECT COUNT(*) FROM tasks');
+    const submissions = await pool.query("SELECT COUNT(*) FROM task_assignments WHERE status IN ('completed','marked')");
+    const totalAssignments = await pool.query('SELECT COUNT(*) FROM task_assignments');
+    const todayDate = new Date().toISOString().split('T')[0];
+    const todayAttendance = await pool.query(
+      "SELECT COUNT(*) FROM attendance WHERE date = $1 AND status = 'present'",
+      [todayDate]
+    );
+    res.json({
+      success: true,
+      data: {
+        totalStudents: parseInt(totalStudents.rows[0].count) || 0,
+        pendingReviews: parseInt(pendingReviews.rows[0].count) || 0,
+        assignedTasks: parseInt(assignedTasks.rows[0].count) || 0,
+        submissions: parseInt(submissions.rows[0].count) || 0,
+        totalAssignments: parseInt(totalAssignments.rows[0].count) || 0,
+        todayAttendance: parseInt(todayAttendance.rows[0].count) || 0,
+        submissionRate: totalAssignments.rows[0].count > 0
+          ? Math.round((parseInt(submissions.rows[0].count) / parseInt(totalAssignments.rows[0].count)) * 100)
+          : 0,
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET all submitted tasks (for trainer review)
+app.get('/api/tasks/submitted', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        ta.id AS assignment_id,
+        ta.task_id,
+        ta.student_id,
+        ta.status,
+        ta.score,
+        ta.feedback,
+        ta.graded_at,
+        ta.created_at AS assigned_at,
+        t.title AS task_name,
+        t.course_label,
+        t.due_date,
+        s.first_name,
+        s.last_name,
+        s.enrollment_id,
+        s.avatar_url,
+        u.email,
+        ts.github_url,
+        ts.live_url,
+        ts.description AS submission_desc,
+        ts.notes AS submission_notes,
+        ts.submitted_at,
+        ts.image_urls,
+        ts.additional_links
+      FROM task_assignments ta
+      JOIN tasks t ON t.id = ta.task_id
+      JOIN students s ON s.id = ta.student_id
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN task_submissions ts ON ts.assignment_id = ta.id
+      WHERE ta.status IN ('completed', 'marked')
+      ORDER BY ts.submitted_at DESC NULLS LAST, ta.created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST publish/grade task + send notification + email
+app.post('/api/tasks/assignments/:assignmentId/publish', async (req, res) => {
+  const { assignmentId } = req.params;
+  const { score, feedback, grade } = req.body;
+  const scoreNum = Number(score);
+  if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100) {
+    return res.status(400).json({ success: false, error: 'Score must be 0–100.' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // 1. Update assignment
+    await client.query(
+      `UPDATE task_assignments SET status = 'marked', score = $1, feedback = $2, graded_at = NOW() WHERE id = $3`,
+      [scoreNum, feedback || null, assignmentId]
+    );
+    // 2. Get details for notification/email
+    const detailRes = await client.query(`
+      SELECT ta.student_id, t.title AS task_name, s.first_name, s.last_name, u.email, u.id AS user_id
+      FROM task_assignments ta
+      JOIN tasks t ON t.id = ta.task_id
+      JOIN students s ON s.id = ta.student_id
+      JOIN users u ON u.id = s.user_id
+      WHERE ta.id = $1
+    `, [assignmentId]);
+    if (detailRes.rows.length > 0) {
+      const d = detailRes.rows[0];
+      // 3. Create notification
+      await client.query(
+        `INSERT INTO notifications (user_id, title, message, type)
+         VALUES ($1, $2, $3, 'task_reviewed')`,
+        [d.user_id, `Task Reviewed: ${d.task_name}`, `Your task "${d.task_name}" has been reviewed. Score: ${scoreNum}/100. ${feedback ? 'Feedback: ' + feedback : ''}`]
+      );
+      await client.query('COMMIT');
+      client.release();
+      // 4. Send email
+      const gradeLabel = grade || (scoreNum >= 90 ? 'A+' : scoreNum >= 80 ? 'A' : scoreNum >= 70 ? 'B' : scoreNum >= 60 ? 'C' : 'F');
+      const emailHtml = `
+        <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;">
+          <div style="background:linear-gradient(135deg,#1D4ED8,#3B82F6);padding:32px;text-align:center;border-radius:16px 16px 0 0;">
+            <h1 style="color:#fff;margin:0;font-size:22px;">📝 Task Review Published</h1>
+          </div>
+          <div style="padding:32px;background:#fff;border-radius:0 0 16px 16px;border:1px solid #e2e8f0;">
+            <p style="font-size:16px;color:#1e293b;">Dear <strong>${d.first_name} ${d.last_name}</strong>,</p>
+            <p style="color:#475569;">Your submission for <strong>${d.task_name}</strong> has been reviewed.</p>
+            <div style="background:#f0fdf4;padding:16px;border-radius:8px;border-left:4px solid #22c55e;margin:16px 0;">
+              <p style="margin:4px 0;font-size:20px;font-weight:700;color:#15803d;">Score: ${scoreNum}/100 — Grade: ${gradeLabel}</p>
+            </div>
+            ${feedback ? `<div style="background:#f8fafc;padding:16px;border-radius:8px;margin:8px 0;"><p style="color:#475569;margin:0;"><strong>Feedback:</strong> ${feedback}</p></div>` : ''}
+          </div>
+        </div>`;
+      await sendEmail(d.email, `✅ Task Reviewed — ${d.task_name} | Falcon Swift LMS`, emailHtml);
+    } else {
+      await client.query('COMMIT');
+      client.release();
+    }
+    res.json({ success: true, message: 'Task graded and published.' });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST assign task with email notification
+app.post('/api/tasks/assign-with-email', async (req, res) => {
+  const { title, description, instructions, courseId, courseLabel, points, dueDate, referenceLinks, assignedStudentIds, trainerName } = req.body;
+  if (!title || !courseId || !assignedStudentIds?.length) {
+    return res.status(400).json({ success: false, error: 'title, courseId, and assignedStudentIds are required.' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const taskRes = await client.query(
+      `INSERT INTO tasks (title, description, course_id, course_label, points, due_date, reference_links)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [title, description || instructions || '', courseId, courseLabel, points || 100, dueDate || null, JSON.stringify(referenceLinks || [])]
+    );
+    const task = taskRes.rows[0];
+    const studentDetails: any[] = [];
+    for (const studentId of assignedStudentIds) {
+      await client.query(
+        `INSERT INTO task_assignments (task_id, student_id, status) VALUES ($1, $2, 'pending')
+         ON CONFLICT (task_id, student_id) DO NOTHING`,
+        [task.id, studentId]
+      );
+      // Get student email + user_id for notification
+      const sRes = await client.query(
+        'SELECT s.first_name, s.last_name, u.email, u.id AS user_id FROM students s JOIN users u ON u.id = s.user_id WHERE s.id = $1',
+        [studentId]
+      );
+      if (sRes.rows.length > 0) studentDetails.push(sRes.rows[0]);
+    }
+    // Create notifications
+    for (const s of studentDetails) {
+      await client.query(
+        `INSERT INTO notifications (user_id, title, message, type)
+         VALUES ($1, $2, $3, 'task_assigned')`,
+        [s.user_id, `New Task: ${title}`, `A new task "${title}" has been assigned in ${courseLabel || courseId}. Deadline: ${dueDate ? new Date(dueDate).toLocaleDateString() : 'N/A'}`]
+      );
+    }
+    await client.query('COMMIT');
+    client.release();
+    // Send emails in background
+    const deadlineStr = dueDate ? new Date(dueDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'No deadline set';
+    for (const s of studentDetails) {
+      const emailHtml = `
+        <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;">
+          <div style="background:linear-gradient(135deg,#F6B32B,#E09B18);padding:32px;text-align:center;border-radius:16px 16px 0 0;">
+            <h1 style="color:#000;margin:0;font-size:22px;">📋 New Task Assigned</h1>
+          </div>
+          <div style="padding:32px;background:#fff;border-radius:0 0 16px 16px;border:1px solid #e2e8f0;">
+            <p style="font-size:16px;color:#1e293b;">Dear <strong>${s.first_name} ${s.last_name}</strong>,</p>
+            <p style="color:#475569;">A new task has been assigned to you.</p>
+            <div style="background:#fffbeb;padding:16px;border-radius:8px;border-left:4px solid #F6B32B;margin:16px 0;">
+              <p style="margin:4px 0;font-weight:700;font-size:18px;color:#92400e;">${title}</p>
+              <p style="margin:4px 0;color:#78350f;"><strong>Course:</strong> ${courseLabel || courseId}</p>
+              <p style="margin:4px 0;color:#78350f;"><strong>Trainer:</strong> ${trainerName || 'Falcon Swift Team'}</p>
+              <p style="margin:4px 0;color:#dc2626;"><strong>Deadline:</strong> ${deadlineStr}</p>
+              <p style="margin:4px 0;color:#78350f;"><strong>Points:</strong> ${points || 100}</p>
+            </div>
+            <p style="color:#475569;">${description || instructions || ''}</p>
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://omnilearn-lms.vercel.app'}/login/student" style="display:inline-block;background:linear-gradient(135deg,#F6B32B,#E09B18);color:#000;font-weight:700;padding:12px 28px;border-radius:8px;text-decoration:none;margin-top:16px;">Open LMS Portal</a>
+          </div>
+        </div>`;
+      await sendEmail(s.email, `📋 New Task: ${title} — Falcon Swift LMS`, emailHtml);
+    }
+    res.status(201).json({ success: true, data: task, emailsSent: studentDetails.length });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// ATTENDANCE ROUTES
+// ==========================================
+
+// POST mark attendance (Trainer)
+app.post('/api/attendance', async (req, res) => {
+  const { records, date } = req.body;
+  // records = [{ studentId, status, notes }]
+  if (!records || !Array.isArray(records) || !date) {
+    return res.status(400).json({ success: false, error: 'records array and date are required.' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const record of records) {
+      await client.query(
+        `INSERT INTO attendance (student_id, date, status, notes)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (student_id, date) DO UPDATE SET status = EXCLUDED.status, notes = EXCLUDED.notes, marked_at = NOW()`,
+        [record.studentId, date, record.status || 'present', record.notes || '']
+      );
+      // Create notification for student
+      const sRes = await client.query(
+        'SELECT u.id AS user_id FROM students s JOIN users u ON u.id = s.user_id WHERE s.id = $1',
+        [record.studentId]
+      );
+      if (sRes.rows.length > 0) {
+        const statusLabel = record.status === 'present' ? 'Present ✅' : record.status === 'absent' ? 'Absent ❌' : record.status === 'late' ? 'Late ⏰' : 'On Leave 📋';
+        await client.query(
+          `INSERT INTO notifications (user_id, title, message, type)
+           VALUES ($1, $2, $3, 'attendance')`,
+          [sRes.rows[0].user_id, `Attendance Marked: ${new Date(date).toDateString()}`, `Your attendance for ${new Date(date).toDateString()} has been marked as ${statusLabel}.`]
+        );
+      }
+    }
+    await client.query('COMMIT');
+    client.release();
+    res.json({ success: true, message: `Attendance marked for ${records.length} student(s).` });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET student attendance
+app.get('/api/attendance/student/:studentId', async (req, res) => {
+  const { studentId } = req.params;
+  const { month, year } = req.query;
+  try {
+    let query = 'SELECT * FROM attendance WHERE student_id = $1 ORDER BY date DESC';
+    let params: any[] = [studentId];
+    if (month && year) {
+      query = `SELECT * FROM attendance WHERE student_id = $1 AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3 ORDER BY date ASC`;
+      params = [studentId, month, year];
+    }
+    const result = await pool.query(query, params);
+    // Summary stats
+    const all = result.rows;
+    const total = all.length;
+    const present = all.filter(r => r.status === 'present').length;
+    const absent = all.filter(r => r.status === 'absent').length;
+    const late = all.filter(r => r.status === 'late').length;
+    const leave = all.filter(r => r.status === 'leave').length;
+    const attendancePercent = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+    res.json({
+      success: true,
+      data: result.rows,
+      stats: { total, present, absent, late, leave, attendancePercent }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET all students attendance for a date (Trainer view)
+app.get('/api/attendance/date/:date', async (req, res) => {
+  const { date } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT a.*, s.first_name, s.last_name, s.enrollment_id, s.program, s.avatar_url
+      FROM attendance a
+      JOIN students s ON s.id = a.student_id
+      WHERE a.date = $1
+      ORDER BY s.first_name ASC
+    `, [date]);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET attendance summary for admin report
+app.get('/api/attendance/summary', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        s.id AS student_id,
+        s.first_name,
+        s.last_name,
+        s.enrollment_id,
+        s.program,
+        COUNT(a.id) AS total_days,
+        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS present_count,
+        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END) AS absent_count,
+        SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END) AS late_count,
+        SUM(CASE WHEN a.status = 'leave' THEN 1 ELSE 0 END) AS leave_count
+      FROM students s
+      LEFT JOIN attendance a ON a.student_id = s.id
+      GROUP BY s.id, s.first_name, s.last_name, s.enrollment_id, s.program
+      ORDER BY s.first_name ASC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// ANNOUNCEMENTS ROUTES
+// ==========================================
+
+// POST create announcement
+app.post('/api/announcements', async (req, res) => {
+  const { title, content, authorId, authorName, role, target, sendEmail: doSendEmail } = req.body;
+  if (!title || !content) return res.status(400).json({ success: false, error: 'title and content required.' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `INSERT INTO announcements (title, content, author_id, author_name, role, target)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [title, content, authorId || null, authorName || 'Admin', role || 'admin', target || 'all']
+    );
+    // Create notifications for all students
+    const studentsRes = await client.query('SELECT u.id AS user_id FROM students s JOIN users u ON u.id = s.user_id');
+    for (const s of studentsRes.rows) {
+      await client.query(
+        `INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'announcement')`,
+        [s.user_id, `📢 ${title}`, content.substring(0, 200)]
+      );
+    }
+    await client.query('COMMIT');
+    client.release();
+    // Optional: send email to all students
+    if (doSendEmail) {
+      const emailStudents = await pool.query('SELECT u.email, s.first_name FROM students s JOIN users u ON u.id = s.user_id');
+      for (const s of emailStudents.rows) {
+        const emailHtml = `
+          <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;">
+            <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:32px;text-align:center;border-radius:16px 16px 0 0;">
+              <h1 style="color:#fff;margin:0;font-size:22px;">📢 New Announcement</h1>
+            </div>
+            <div style="padding:32px;background:#fff;border-radius:0 0 16px 16px;border:1px solid #e2e8f0;">
+              <p>Dear <strong>${s.first_name}</strong>,</p>
+              <h2 style="color:#1e293b;">${title}</h2>
+              <p style="color:#475569;line-height:1.7;">${content}</p>
+              <p style="color:#94a3b8;font-size:12px;margin-top:24px;">— ${authorName || 'Falcon Swift Team'}</p>
+            </div>
+          </div>`;
+        await sendEmail(s.email, `📢 ${title} — Falcon Swift LMS`, emailHtml);
+      }
+    }
+    res.status(201).json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    client.release();
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET all announcements (paginated)
+app.get('/api/announcements', async (req, res) => {
+  const { limit = 20, offset = 0 } = req.query;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM announcements ORDER BY created_at DESC LIMIT $1 OFFSET $2',
+      [limit, offset]
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT update announcement
+app.put('/api/announcements/:id', async (req, res) => {
+  const { id } = req.params;
+  const { title, content } = req.body;
+  if (!title || !content) return res.status(400).json({ success: false, error: 'title and content are required.' });
+  try {
+    const result = await pool.query(
+      'UPDATE announcements SET title = $1, content = $2 WHERE id = $3 RETURNING *',
+      [title, content, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Announcement not found.' });
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE announcement
+app.delete('/api/announcements/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM announcements WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Announcement deleted.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// NOTIFICATIONS ROUTES
+// ==========================================
+
+// GET notifications for a user
+app.get('/api/notifications', async (req, res) => {
+  const { userId, limit = 20 } = req.query;
+  if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+  try {
+    const result = await pool.query(
+      'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2',
+      [userId, limit]
+    );
+    const unreadCount = result.rows.filter((n: any) => !n.is_read).length;
+    res.json({ success: true, data: result.rows, unreadCount });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT mark notification as read
+app.put('/api/notifications/:id/read', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('UPDATE notifications SET is_read = TRUE WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT mark ALL notifications as read for a user
+app.put('/api/notifications/read-all', async (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+  try {
+    await pool.query('UPDATE notifications SET is_read = TRUE WHERE user_id = $1', [userId]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// ADMIN DASHBOARD STATS
+// ==========================================
+
+app.get('/api/dashboard/admin-stats', async (req, res) => {
+  try {
+    const [
+      studentsRes,
+      trainersRes,
+      coursesRes,
+      activeTasksRes,
+      pendingRegsRes,
+      submissionsRes,
+      admissionsWeeklyRes,
+      taskCompletionRes,
+    ] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM students'),
+      pool.query("SELECT COUNT(*) FROM users WHERE role = 'trainer'"),
+      pool.query('SELECT COUNT(*) FROM courses'),
+      pool.query("SELECT COUNT(*) FROM tasks"),
+      pool.query("SELECT COUNT(*) FROM training_applications WHERE status = 'pending'"),
+      pool.query("SELECT COUNT(*) FROM task_assignments WHERE status IN ('completed','marked')"),
+      // Weekly admissions (last 7 days)
+      pool.query(`
+        SELECT DATE(created_at) as day, COUNT(*) as count
+        FROM training_applications
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY DATE(created_at)
+        ORDER BY day ASC
+      `),
+      // Task completion rate
+      pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+          COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+          COUNT(*) FILTER (WHERE status = 'marked') AS marked
+        FROM task_assignments
+      `),
+    ]);
+
+    const todayDate = new Date().toISOString().split('T')[0];
+    const todayAttendance = await pool.query(
+      "SELECT COUNT(*) FROM attendance WHERE date = $1 AND status = 'present'",
+      [todayDate]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        students: parseInt(studentsRes.rows[0].count) || 0,
+        trainers: parseInt(trainersRes.rows[0].count) || 0,
+        courses: parseInt(coursesRes.rows[0].count) || 0,
+        activeTasks: parseInt(activeTasksRes.rows[0].count) || 0,
+        pendingRegistrations: parseInt(pendingRegsRes.rows[0].count) || 0,
+        submissions: parseInt(submissionsRes.rows[0].count) || 0,
+        todayAttendance: parseInt(todayAttendance.rows[0].count) || 0,
+        admissionsWeekly: admissionsWeeklyRes.rows,
+        taskCompletion: taskCompletionRes.rows[0] || { pending: 0, completed: 0, marked: 0 },
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// STUDENT PERFORMANCE ROUTES
+// ==========================================
+
+app.get('/api/students/:studentId/performance', async (req, res) => {
+  const { studentId } = req.params;
+  try {
+    const result = await pool.query(`
+      SELECT
+        ta.id AS assignment_id,
+        t.title AS task_name,
+        t.course_label,
+        t.points AS max_points,
+        ta.score,
+        ta.status,
+        ta.feedback,
+        ta.graded_at,
+        ta.created_at AS assigned_at,
+        CASE
+          WHEN ta.score >= 90 THEN 'A+'
+          WHEN ta.score >= 80 THEN 'A'
+          WHEN ta.score >= 70 THEN 'B'
+          WHEN ta.score >= 60 THEN 'C'
+          WHEN ta.score IS NOT NULL THEN 'F'
+          ELSE 'Pending'
+        END AS grade
+      FROM task_assignments ta
+      JOIN tasks t ON t.id = ta.task_id
+      WHERE ta.student_id = $1 AND ta.status = 'marked'
+      ORDER BY ta.graded_at DESC
+    `, [studentId]);
+
+    const avgRes = await pool.query(
+      "SELECT AVG(score) AS avg, COUNT(*) AS total, MAX(score) AS highest, MIN(score) AS lowest FROM task_assignments WHERE student_id = $1 AND status = 'marked'",
+      [studentId]
+    );
+    const summary = avgRes.rows[0];
+
+    res.json({
+      success: true,
+      data: result.rows,
+      summary: {
+        averageScore: Math.round(parseFloat(summary.avg)) || 0,
+        totalGraded: parseInt(summary.total) || 0,
+        highestScore: Math.round(parseFloat(summary.highest)) || 0,
+        lowestScore: Math.round(parseFloat(summary.lowest)) || 0,
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// PASSWORD CHANGE ROUTE
+// ==========================================
+
+app.put('/api/auth/change-password', async (req, res) => {
+  const { userId, currentPassword, newPassword } = req.body;
+  if (!userId || !currentPassword || !newPassword) {
+    return res.status(400).json({ success: false, error: 'userId, currentPassword, newPassword required.' });
+  }
+  try {
+    const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found.' });
+    const user = userRes.rows[0];
+    const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isMatch) return res.status(401).json({ success: false, error: 'Current password is incorrect.' });
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
+    res.json({ success: true, message: 'Password changed successfully.' });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET all students with their task/performance summary (admin)
+app.get('/api/students/full-report', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        s.id, s.first_name, s.last_name, s.enrollment_id, s.program, s.avatar_url,
+        u.email,
+        COUNT(ta.id) AS total_tasks,
+        COUNT(ta.id) FILTER (WHERE ta.status = 'marked') AS graded_tasks,
+        ROUND(AVG(ta.score) FILTER (WHERE ta.status = 'marked'), 1) AS avg_score,
+        COUNT(a_att.id) AS total_attendance,
+        COUNT(a_att.id) FILTER (WHERE a_att.status = 'present') AS present_days
+      FROM students s
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN task_assignments ta ON ta.student_id = s.id
+      LEFT JOIN attendance a_att ON a_att.student_id = s.id
+      GROUP BY s.id, s.first_name, s.last_name, s.enrollment_id, s.program, s.avatar_url, u.email
+      ORDER BY s.created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.listen(PORT, async () => {
   console.log(`Server is running on http://localhost:${PORT}`);
   try {
@@ -1509,5 +2274,81 @@ app.listen(PORT, async () => {
     console.log('✅ "task_submissions" table created/verified successfully!');
   } catch (dbErr: any) {
     console.error('❌ Failed to verify/create "task_submissions" table:', dbErr.message);
+  }
+
+  // Auto-create trainers table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS trainers (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(id) ON DELETE CASCADE,
+        first_name VARCHAR(100) NOT NULL,
+        last_name VARCHAR(100) NOT NULL,
+        employee_id VARCHAR(100) UNIQUE,
+        department VARCHAR(100),
+        avatar_url TEXT,
+        phone VARCHAR(50),
+        assigned_courses TEXT[],
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('✅ "trainers" table created/verified successfully!');
+  } catch (dbErr: any) {
+    console.error('❌ Failed to verify/create "trainers" table:', dbErr.message);
+  }
+
+  // Auto-create attendance table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS attendance (
+        id SERIAL PRIMARY KEY,
+        student_id INT REFERENCES students(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        status VARCHAR(20) DEFAULT 'present',
+        notes TEXT,
+        marked_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(student_id, date)
+      );
+    `);
+    console.log('✅ "attendance" table created/verified successfully!');
+  } catch (dbErr: any) {
+    console.error('❌ Failed to verify/create "attendance" table:', dbErr.message);
+  }
+
+  // Auto-create announcements table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS announcements (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(500) NOT NULL,
+        content TEXT NOT NULL,
+        author_id INT REFERENCES users(id) ON DELETE SET NULL,
+        author_name VARCHAR(255),
+        role VARCHAR(50) DEFAULT 'admin',
+        target VARCHAR(50) DEFAULT 'all',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('✅ "announcements" table created/verified successfully!');
+  } catch (dbErr: any) {
+    console.error('❌ Failed to verify/create "announcements" table:', dbErr.message);
+  }
+
+  // Auto-create notifications table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(500) NOT NULL,
+        message TEXT,
+        type VARCHAR(100),
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('✅ "notifications" table created/verified successfully!');
+  } catch (dbErr: any) {
+    console.error('❌ Failed to verify/create "notifications" table:', dbErr.message);
   }
 });

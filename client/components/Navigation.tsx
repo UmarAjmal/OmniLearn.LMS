@@ -1,117 +1,222 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
+// ─────────────────────────────────────────
+// Nav link helper
+// ─────────────────────────────────────────
+function NavLink({
+  href,
+  icon,
+  label,
+  active,
+  badge,
+  onClick,
+}: {
+  href: string;
+  icon: string;
+  label: string;
+  active: boolean;
+  badge?: number;
+  onClick?: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 group relative ${
+        active
+          ? "bg-[#F6B32B]/10 text-[#F6B32B] border border-[#F6B32B]/20 shadow-[0_0_12px_rgba(246,179,43,0.08)]"
+          : "text-white/50 hover:text-white hover:bg-white/5"
+      }`}
+    >
+      <span
+        className={`material-symbols-outlined text-[20px] transition-all ${
+          active ? "text-[#F6B32B]" : "group-hover:text-white/80"
+        }`}
+        style={active ? { fontVariationSettings: "'FILL' 1" } : {}}
+      >
+        {icon}
+      </span>
+      <span className="text-sm font-semibold tracking-tight">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function NavSection({ label }: { label: string }) {
+  return (
+    <p className="px-4 pt-4 pb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/25">
+      {label}
+    </p>
+  );
+}
+
+// ─────────────────────────────────────────
+// Main Navigation Component
+// ─────────────────────────────────────────
 export default function Navigation({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isTasksOpen, setIsTasksOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-
-  useEffect(() => {
-    if (pathname.startsWith("/tasks")) {
-      setIsTasksOpen(true);
-    }
-  }, [pathname]);
 
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
-
+  const [userId, setUserId] = useState<string | null>(null);
   const [profileIncomplete, setProfileIncomplete] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [pendingAdmissions, setPendingAdmissions] = useState(0);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("User");
 
+  const closeMobile = () => setIsMobileMenuOpen(false);
+
+  // ── fetch notifications
+  const fetchNotifications = useCallback(async (uid: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/notifications?userId=${uid}&limit=10`);
+      const json = await res.json();
+      if (json.success) {
+        setNotifications(json.data || []);
+        setUnreadCount(json.unreadCount || 0);
+      }
+    } catch {}
+  }, []);
+
+  // ── fetch pending admissions count (admin only)
+  const fetchPendingCount = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/training-applications/count`);
+      const json = await res.json();
+      if (json.success) setPendingAdmissions(json.count || 0);
+    } catch {}
+  }, []);
+
+  // ── mark all read
+  const markAllRead = async () => {
+    if (!userId) return;
+    try {
+      await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      setUnreadCount(0);
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch {}
+  };
+
+  // ── auth guard + role routing
   useEffect(() => {
     const auth = localStorage.getItem("lms_auth") === "true";
     const role = localStorage.getItem("lms_user_role");
-    const userId = localStorage.getItem("lms_user_id");
+    const uid = localStorage.getItem("lms_user_id");
     setIsAuthenticated(auth);
     setUserRole(role);
+    setUserId(uid);
 
-    const isPublicRoute = pathname === "/" || pathname.startsWith("/signup") || pathname.startsWith("/apply");
-
-    const handleLogout = () => {
-      localStorage.removeItem("lms_auth");
-      localStorage.removeItem("lms_user_role");
-      localStorage.removeItem("lms_user_id");
-      localStorage.removeItem("lms_student_info");
-      setUserRole(null);
-      setIsAuthenticated(false);
-      router.push("/");
-    };
+    const isPublicRoute =
+      pathname === "/" ||
+      pathname.startsWith("/signup") ||
+      pathname.startsWith("/apply") ||
+      pathname.startsWith("/login");
 
     if (auth) {
       if (role === "student") {
         const studentStr = localStorage.getItem("lms_student_info");
-        const hasStudentInfo = studentStr && studentStr !== "undefined" && studentStr !== "null";
+        const hasStudentInfo =
+          studentStr && studentStr !== "undefined" && studentStr !== "null";
 
-        if (!hasStudentInfo) {
-          if (userId) {
-            // Load dynamically from database to resolve missing storage
-            fetch(`${API_BASE_URL}/api/students/profile?userId=${userId}`)
-              .then(r => r.json())
-              .then(res => {
-                if (res.success && res.data) {
-                  localStorage.setItem("lms_student_info", JSON.stringify(res.data));
-                  window.location.reload();
-                } else {
-                  toast.error("Profile registry invalid. Re-login.");
-                  handleLogout();
-                }
-              })
-              .catch(() => {
-                // Network error, do not loop
-              });
-          } else {
-            toast.error("Session information missing. Re-login.");
-            handleLogout();
-            return;
-          }
+        if (!hasStudentInfo && uid) {
+          fetch(`${API_BASE_URL}/api/students/profile?userId=${uid}`)
+            .then((r) => r.json())
+            .then((res) => {
+              if (res.success && res.data) {
+                localStorage.setItem("lms_student_info", JSON.stringify(res.data));
+                window.location.reload();
+              } else {
+                toast.error("Profile invalid. Re-login.");
+                localStorage.clear();
+                router.push("/");
+              }
+            })
+            .catch(() => {});
         }
 
-        // Parse and check if profile is complete
         try {
           if (hasStudentInfo) {
-            const student = JSON.parse(studentStr);
-            if (student) {
-              const isComplete = 
-                student.first_name?.trim() && 
-                student.last_name?.trim() && 
-                student.whatsapp?.trim() && 
-                student.cnic?.trim() && 
-                student.university?.trim() && 
-                student.semester;
-              setProfileIncomplete(!isComplete);
-            }
+            const student = JSON.parse(studentStr!);
+            setDisplayName(`${student.first_name || ""} ${student.last_name || ""}`.trim());
+            setAvatarUrl(student.avatar_url || null);
+            const isComplete =
+              student.first_name?.trim() &&
+              student.last_name?.trim() &&
+              student.whatsapp?.trim() &&
+              student.cnic?.trim() &&
+              student.university?.trim() &&
+              student.semester;
+            setProfileIncomplete(!isComplete);
           }
-        } catch (e) {
-          console.error(e);
-        }
+        } catch {}
 
         if (!pathname.startsWith("/student/") && !isPublicRoute) {
           router.push("/student/dashboard");
           return;
         }
+      } else if (role === "trainer") {
+        setProfileIncomplete(false);
+        if (pathname.startsWith("/student/") || pathname.startsWith("/dashboard")) {
+          router.push("/trainer/dashboard");
+          return;
+        }
+        if (!pathname.startsWith("/trainer/") && !pathname.startsWith("/tasks") && !isPublicRoute) {
+          router.push("/trainer/dashboard");
+          return;
+        }
+        // Fetch trainer profile for display name + avatar
+        if (uid) {
+          fetch(`${API_BASE_URL}/api/trainers/profile?userId=${uid}`)
+            .then((r) => r.json())
+            .then((res) => {
+              if (res.success && res.data) {
+                setDisplayName(`${res.data.first_name || ""} ${res.data.last_name || ""}`.trim());
+                setAvatarUrl(res.data.avatar_url || null);
+              }
+            })
+            .catch(() => {});
+        }
       } else {
         // Admin
         setProfileIncomplete(false);
-        if (pathname.startsWith("/student/")) {
+        setDisplayName("Admin");
+        if (pathname.startsWith("/student/") || pathname.startsWith("/trainer/")) {
           router.push("/dashboard");
           return;
         }
+        fetchPendingCount();
       }
+
       if (pathname === "/") {
-        if (role === "student") {
-          router.push("/student/dashboard");
-        } else {
-          router.push("/dashboard");
-        }
+        if (role === "student") router.push("/student/dashboard");
+        else if (role === "trainer") router.push("/trainer/dashboard");
+        else router.push("/dashboard");
         return;
       }
+
+      // Fetch notifications for all authenticated users
+      if (uid) fetchNotifications(uid);
       setIsCheckingAuth(false);
     } else {
       setProfileIncomplete(false);
@@ -122,345 +227,276 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
         setIsCheckingAuth(false);
       }
     }
-  }, [pathname, router]);
+  }, [pathname, router, fetchNotifications, fetchPendingCount]);
 
-  // Handle logout
+  // Poll notifications every 30 seconds
+  useEffect(() => {
+    if (!userId || !isAuthenticated) return;
+    const interval = setInterval(() => {
+      fetchNotifications(userId);
+      if (userRole === "admin") fetchPendingCount();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [userId, isAuthenticated, userRole, fetchNotifications, fetchPendingCount]);
+
   const handleLogout = (e: React.MouseEvent) => {
     e.preventDefault();
     localStorage.removeItem("lms_auth");
     localStorage.removeItem("lms_user_role");
     localStorage.removeItem("lms_user_id");
     localStorage.removeItem("lms_student_info");
-    toast.success("Successfully logged out.");
+    toast.success("Logged out successfully.");
     router.push("/");
-  };
-
-  // Determine dynamic title based on route
-  const getHeaderTitle = () => {
-    if (pathname.includes("/courses/create")) {
-      return "Course Builder";
-    }
-    return "Falcon LMS";
   };
 
   if (isCheckingAuth) {
     return (
-      <div className="fixed inset-0 bg-[#000000] flex flex-col items-center justify-center z-50">
-        <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin mb-4" />
-        <p className="text-on-surface-variant font-light text-sm">Authenticating session...</p>
+      <div className="fixed inset-0 bg-[#090D16] flex flex-col items-center justify-center z-50">
+        <div className="relative mb-6">
+          <div className="w-16 h-16 rounded-full border-4 border-[#F6B32B]/20 border-t-[#F6B32B] animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="material-symbols-outlined text-[#F6B32B] text-2xl">bolt</span>
+          </div>
+        </div>
+        <p className="text-white/40 font-light text-sm tracking-wide">Authenticating session…</p>
       </div>
     );
   }
 
-  const isPublicRoute = pathname === "/" || pathname.startsWith("/signup") || pathname.startsWith("/apply");
-  if (isPublicRoute) {
-    return <>{children}</>;
-  }
+  const isPublicRoute =
+    pathname === "/" ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/apply") ||
+    pathname.startsWith("/login");
+
+  if (isPublicRoute) return <>{children}</>;
+
+  // ─── Sidebar content by role ───────────────────────────────────────────
+  const renderSidebar = () => {
+    if (userRole === "student") {
+      return (
+        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto custom-scrollbar pb-4">
+          <NavSection label="Main" />
+          <NavLink href="/student/dashboard" icon="grid_view" label="Dashboard" active={pathname === "/student/dashboard"} onClick={closeMobile} />
+          <NavSection label="Learning" />
+          <NavLink href="/student/tasks" icon="assignment" label="My Tasks" active={pathname === "/student/tasks"} onClick={closeMobile} />
+          <NavLink href="/student/submit-task" icon="upload" label="Submit Task" active={pathname === "/student/submit-task"} onClick={closeMobile} />
+          <NavLink href="/student/performance" icon="trending_up" label="Performance" active={pathname === "/student/performance"} onClick={closeMobile} />
+          <NavSection label="Records" />
+          <NavLink href="/student/attendance" icon="event_available" label="Attendance" active={pathname === "/student/attendance"} onClick={closeMobile} />
+          <NavLink href="/student/announcements" icon="campaign" label="Announcements" active={pathname === "/student/announcements"} onClick={closeMobile} />
+          <NavSection label="Account" />
+          <NavLink href="/student/profile" icon="person" label="My Profile" active={pathname === "/student/profile"} onClick={closeMobile} />
+        </nav>
+      );
+    }
+
+    if (userRole === "trainer") {
+      return (
+        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto custom-scrollbar pb-4">
+          <NavSection label="Main" />
+          <NavLink href="/trainer/dashboard" icon="grid_view" label="Dashboard" active={pathname === "/trainer/dashboard"} onClick={closeMobile} />
+          <NavSection label="Tasks" />
+          <NavLink href="/tasks/new" icon="add_task" label="Assign Task" active={pathname === "/tasks/new"} onClick={closeMobile} />
+          <NavLink href="/trainer/submitted-tasks" icon="inbox" label="Submitted Tasks" active={pathname === "/trainer/submitted-tasks"} onClick={closeMobile} />
+          <NavLink href="/tasks/review" icon="rate_review" label="Review Tasks" active={pathname.startsWith("/tasks/review")} onClick={closeMobile} />
+          <NavSection label="Management" />
+          <NavLink href="/trainer/students" icon="group" label="Students" active={pathname === "/trainer/students"} onClick={closeMobile} />
+          <NavLink href="/trainer/attendance" icon="event_available" label="Mark Attendance" active={pathname === "/trainer/attendance"} onClick={closeMobile} />
+          <NavLink href="/trainer/announcements" icon="campaign" label="Announcements" active={pathname === "/trainer/announcements"} onClick={closeMobile} />
+          <NavSection label="Account" />
+          <NavLink href="/trainer/profile" icon="person" label="My Profile" active={pathname === "/trainer/profile"} onClick={closeMobile} />
+        </nav>
+      );
+    }
+
+    // Admin
+    return (
+      <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto custom-scrollbar pb-4">
+        <NavSection label="Overview" />
+        <NavLink href="/dashboard" icon="grid_view" label="Dashboard" active={pathname === "/dashboard"} onClick={closeMobile} />
+        <NavSection label="People" />
+        <NavLink href="/students" icon="school" label="Students" active={pathname.startsWith("/students") && !pathname.startsWith("/students/applicants")} onClick={closeMobile} />
+        <NavLink href="/dashboard/trainers" icon="badge" label="Trainers" active={pathname === "/dashboard/trainers"} onClick={closeMobile} />
+        <NavLink href="/students/applicants" icon="how_to_reg" label="Admissions" active={pathname === "/students/applicants"} badge={pendingAdmissions} onClick={closeMobile} />
+        <NavSection label="Content" />
+        <NavLink href="/courses" icon="menu_book" label="Courses" active={pathname.startsWith("/courses")} onClick={closeMobile} />
+        <NavLink href="/tasks/new" icon="add_task" label="Assign Task" active={pathname === "/tasks/new"} onClick={closeMobile} />
+        <NavLink href="/tasks/completed" icon="task_alt" label="Submissions" active={pathname === "/tasks/completed"} onClick={closeMobile} />
+        <NavSection label="Analytics" />
+        <NavLink href="/dashboard/reports" icon="bar_chart" label="Reports" active={pathname === "/dashboard/reports"} onClick={closeMobile} />
+        <NavLink href="/dashboard/announcements" icon="campaign" label="Announcements" active={pathname === "/dashboard/announcements"} onClick={closeMobile} />
+        <NavSection label="System" />
+        <NavLink href="/dashboard/settings" icon="settings" label="Settings" active={pathname === "/dashboard/settings"} onClick={closeMobile} />
+      </nav>
+    );
+  };
+
+  // ─── Role badge ──────────────────────────────────────────────────────────
+  const roleBadge = {
+    admin: { label: "Administrator", color: "from-[#F6B32B] to-[#E09B18]", text: "text-black" },
+    trainer: { label: "Trainer", color: "from-blue-500 to-blue-700", text: "text-white" },
+    student: { label: "Student", color: "from-emerald-500 to-emerald-700", text: "text-white" },
+  }[userRole || "student"] || { label: "User", color: "from-gray-500 to-gray-700", text: "text-white" };
+
+  const homePath = userRole === "student" ? "/student/dashboard" : userRole === "trainer" ? "/trainer/dashboard" : "/dashboard";
 
   return (
     <>
-      {/* Top Navigation Bar */}
-      <header className="fixed top-0 right-0 left-0 z-50 flex justify-between items-center px-4 md:px-6 py-3 bg-surface/80 backdrop-blur-xl border-b border-white/10 shadow-[0_0_30px_rgba(125,211,252,0.05)] h-16 md:h-20">
-        <div className="flex items-center gap-4">
-          <button 
-            className="md:hidden text-on-surface-variant hover:text-white"
+      {/* ── Top Header ──────────────────────────────────────────────────── */}
+      <header className="fixed top-0 right-0 left-0 z-50 flex justify-between items-center px-4 md:px-6 h-16 bg-[#090D16]/90 backdrop-blur-xl border-b border-white/[0.06]">
+        <div className="flex items-center gap-3">
+          <button
+            className="md:hidden text-white/50 hover:text-white transition-colors"
             onClick={() => setIsMobileMenuOpen(true)}
           >
             <span className="material-symbols-outlined text-2xl">menu</span>
           </button>
-          
-          <Link href="/dashboard">
-            <span className="text-xl font-headline font-semibold tracking-tight text-primary flex items-center gap-2 cursor-pointer">
-              {pathname.includes("/courses/create") && (
-                <span className="material-symbols-outlined hidden sm:block">school</span>
-              )}
-              {getHeaderTitle()}
+          <Link href={homePath} className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#F6B32B] to-[#E09B18] flex items-center justify-center shadow-lg shadow-[#F6B32B]/20">
+              <span className="material-symbols-outlined text-black text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>bolt</span>
+            </div>
+            <span className="text-white font-bold text-base tracking-tight hidden sm:block">
+              Falcon Swift <span className="text-[#F6B32B]">LMS</span>
             </span>
           </Link>
-          
-          {pathname.includes("/courses/create") && (
-            <>
-              <span className="h-6 w-px bg-outline-variant/30 hidden sm:block"></span>
-              <span className="px-3 py-1 bg-surface-variant/50 rounded-full text-xs font-label-md text-on-surface-variant hidden sm:block">
-                Workspace Active
-              </span>
-            </>
-          )}
         </div>
-        
-        <div className="flex items-center gap-3 md:gap-4">
-          {!pathname.includes("/courses/create") && (
-            <div className="relative hidden md:block">
-              <input
-                className="bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm w-64 focus:outline-none focus:border-gold-accent transition-all text-white placeholder-white/30"
-                placeholder="Search learning materials..."
-                type="text"
-              />
-              <span className="material-symbols-outlined absolute right-3 top-2 text-on-surface-variant text-lg">
-                search
-              </span>
-            </div>
-          )}
-          <button className="material-symbols-outlined text-on-surface-variant hover:text-white transition-all text-xl md:text-2xl">
-            notifications
-          </button>
-          <button className="material-symbols-outlined text-on-surface-variant hover:text-white transition-all hidden sm:block text-xl md:text-2xl">
-            help
-          </button>
-          <div className="w-8 h-8 md:w-10 md:h-10 rounded-full overflow-hidden border border-gold-accent/50 ml-1 md:ml-2 shrink-0">
-            <img
-              alt="User avatar"
-              className="w-full h-full object-cover"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuBodHFNUpxhuuuel4X1YH69Bzjd8eld_2A8IqbRAytMStzuG0hXaTt0LCK6CtzrUhYlmdUJ7MD0tAnZfLQVOEFJwsftuFc1vcwGvGpd7HvcjYPE_ZGE9P9PBy6tpeE4FJgFXIi6gbwvo_xr4QJ_Oqg9lH5Xy0J6zFdm_AZRFayBN6rl922oZTq-L3WZHGNQpZ6YmjUPRTE8uVBgDy8XhzCqP_kNo7-m1RmH99bDMe4GTqr5aKE0W6FBnBE0b_l_joA3NnrKFUjcT2p3"
+
+        <div className="flex items-center gap-2">
+          {/* Search */}
+          <div className="relative hidden lg:block">
+            <input
+              className="bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-2 text-sm w-56 focus:outline-none focus:border-[#F6B32B]/40 transition-all text-white placeholder-white/25"
+              placeholder="Quick search…"
+              type="text"
             />
+            <span className="material-symbols-outlined absolute right-3 top-2 text-white/30 text-[18px]">search</span>
+          </div>
+
+          {/* Notification Bell */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/5 transition-colors text-white/50 hover:text-white"
+            >
+              <span className="material-symbols-outlined text-[22px]">notifications</span>
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[#090D16]" />
+              )}
+            </button>
+            {showNotifications && (
+              <div className="absolute right-0 mt-2 w-80 bg-[#101827] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden z-50">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+                  <span className="text-sm font-bold text-white">Notifications</span>
+                  {unreadCount > 0 && (
+                    <button onClick={markAllRead} className="text-[11px] text-[#F6B32B] hover:underline">Mark all read</button>
+                  )}
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center">
+                      <span className="material-symbols-outlined text-white/20 text-4xl block mb-2">notifications_none</span>
+                      <p className="text-white/30 text-sm">No notifications yet</p>
+                    </div>
+                  ) : notifications.map((n) => (
+                    <div key={n.id} className={`px-4 py-3 border-b border-white/[0.04] hover:bg-white/5 transition-colors ${!n.is_read ? "bg-[#F6B32B]/5" : ""}`}>
+                      <p className="text-xs font-semibold text-white leading-snug">{n.title}</p>
+                      <p className="text-[11px] text-white/40 mt-0.5 line-clamp-2">{n.message}</p>
+                      <p className="text-[10px] text-white/25 mt-1">{new Date(n.created_at).toLocaleDateString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Avatar + Name */}
+          <div className="flex items-center gap-2 ml-1">
+            <div className="w-8 h-8 rounded-full overflow-hidden border border-[#F6B32B]/30 shrink-0 bg-[#1E2A3B]">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F6B32B]/20 to-[#E09B18]/10">
+                  <span className="material-symbols-outlined text-[#F6B32B] text-base" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+                </div>
+              )}
+            </div>
+            <span className="hidden md:block text-sm font-semibold text-white/80 max-w-[120px] truncate">{displayName}</span>
           </div>
         </div>
       </header>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile overlay */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        ></div>
+          onClick={closeMobile}
+        />
       )}
 
-      {/* Sidebar Navigation */}
-      <aside className={`h-screen w-64 fixed left-0 top-0 flex flex-col pt-16 md:pt-20 z-50 md:z-40 glass-sidebar transition-transform duration-300 ${
-        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      }`}>
-        {/* Mobile close button */}
-        <button 
-          className="absolute top-4 right-4 md:hidden text-on-surface-variant"
-          onClick={() => setIsMobileMenuOpen(false)}
-        >
+      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
+      <aside
+        className={`fixed left-0 top-0 h-screen w-64 flex flex-col pt-16 z-50 md:z-40 transition-transform duration-300 border-r border-white/[0.06] bg-[#090D16] ${
+          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
+      >
+        {/* Close (mobile) */}
+        <button className="absolute top-5 right-4 md:hidden text-white/40 hover:text-white" onClick={closeMobile}>
           <span className="material-symbols-outlined">close</span>
         </button>
 
-        {/* <div className="px-6 mb-8 mt-4 md:mt-0">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-gold-accent rounded-xl flex items-center justify-center text-black font-bold shrink-0">
-              G
-            </div>
-            <div>
-              <h2 className="text-lg font-headline font-bold text-white leading-tight">
-                Glacier Pro
-              </h2>
-              <p className="text-xs text-on-surface-variant">Enterprise Tier</p>
-            </div>
+        {/* Role badge */}
+        <div className="px-4 pt-5 pb-3">
+          <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r ${roleBadge.color} ${roleBadge.text} text-[11px] font-bold uppercase tracking-wider`}>
+            <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              {userRole === "admin" ? "admin_panel_settings" : userRole === "trainer" ? "school" : "person"}
+            </span>
+            {roleBadge.label}
           </div>
-          <Link href="/courses/create" className="block w-full" onClick={() => setIsMobileMenuOpen(false)}>
-            <button className="w-full py-3 bg-gold-accent hover:bg-gold-accent/90 text-black font-semibold rounded-xl transition-all shadow-lg shadow-gold-accent/20 flex items-center justify-center gap-2 cursor-pointer active:scale-95">
-              <span
-                className="material-symbols-outlined"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                add_circle
-              </span>
-              New Course
-            </button>
-          </Link>
-        </div> */}
-        
-        <nav className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
-          {userRole === "student" ? (
-            <>
-              <Link
-                href="/student/dashboard"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
-                  pathname === "/student/dashboard" 
-                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
-                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <span className="material-symbols-outlined">
-                  grid_view
-                </span>
-                <span className="font-body-md text-sm font-semibold">Dashboard</span>
-              </Link>
-              <Link
-                href="/student/submit-task"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
-                  pathname === "/student/submit-task" 
-                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
-                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <span className="material-symbols-outlined">
-                  upload
-                </span>
-                <span className="font-body-md text-sm font-semibold">Submit Task</span>
-              </Link>
-              <Link
-                href="/student/tasks"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
-                  pathname === "/student/tasks" 
-                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
-                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <span className="material-symbols-outlined">
-                  assignment
-                </span>
-                <span className="font-body-md text-sm font-semibold">Tasks List</span>
-              </Link>
-              <Link
-                href="/student/profile"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
-                  pathname === "/student/profile" 
-                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
-                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <span className="material-symbols-outlined">
-                  person
-                </span>
-                <span className="font-body-md text-sm font-semibold">Profile</span>
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/dashboard"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
-                  pathname === "/dashboard" 
-                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
-                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <span className="material-symbols-outlined" data-icon="grid_view">
-                  grid_view
-                </span>
-                <span className="font-body-md text-sm font-semibold">Dashboard</span>
-              </Link>
-              <Link
-                href="/students"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`px-4 py-3 flex items-center gap-3 rounded-lg transition-all ${
-                  pathname.startsWith("/students")
-                    ? "bg-primary/10 text-primary border-l-4 border-primary" 
-                    : "text-on-surface-variant hover:text-white hover:bg-white/10"
-                }`}
-              >
-                <span className="material-symbols-outlined" data-icon="group">
-                  group
-                </span>
-                <span className="font-body-md text-sm font-semibold">Students</span>
-              </Link>
-              
-              {/* Tasks Dropdown */}
-              <div className="w-full">
-                <button
-                  onClick={() => setIsTasksOpen(!isTasksOpen)}
-                  className={`w-full px-4 py-3 flex items-center justify-between rounded-lg transition-all border-none bg-transparent cursor-pointer text-left ${
-                    pathname.startsWith("/tasks")
-                      ? "bg-primary/5 text-primary"
-                      : "text-on-surface-variant hover:text-white hover:bg-white/10"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined" data-icon="assignment">
-                      assignment
-                    </span>
-                    <span className="font-body-md text-sm font-semibold">Tasks</span>
-                  </div>
-                  <span className={`material-symbols-outlined transition-transform duration-200 text-sm ${isTasksOpen ? "rotate-180" : ""}`}>
-                    expand_more
-                  </span>
-                </button>
-                
-                {isTasksOpen && (
-                  <div className="pl-9 pr-2 mt-1 space-y-1">
-                    <Link
-                      href="/tasks/new"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className={`px-3 py-2 flex items-center gap-2 rounded-lg transition-all text-xs font-semibold uppercase tracking-wider block ${
-                        pathname === "/tasks/new"
-                          ? "text-primary bg-primary/10 border-l-2 border-primary"
-                          : "text-on-surface-variant/80 hover:text-white hover:bg-white/5"
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">add_task</span>
-                      <span>New Task</span>
-                    </Link>
-                    <Link
-                      href="/tasks/completed"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className={`px-3 py-2 flex items-center gap-2 rounded-lg transition-all text-xs font-semibold uppercase tracking-wider block ${
-                        pathname === "/tasks/completed"
-                          ? "text-primary bg-primary/10 border-l-2 border-primary"
-                          : "text-on-surface-variant/80 hover:text-white hover:bg-white/5"
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">task_alt</span>
-                      <span>Complete Task</span>
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-          <a
-            className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
-            href="#"
-          >
-            <span className="material-symbols-outlined" data-icon="settings">
-              settings
-            </span>
-            <span className="font-body-md text-sm font-semibold">Settings</span>
-          </a>
-        </nav>
-        <div className="px-3 pb-6 border-t border-white/5 pt-6 space-y-1">
-          <a
-            className="text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all"
-            href="#"
-          >
-            <span
-              className="material-symbols-outlined"
-              data-icon="contact_support"
-            >
-              contact_support
-            </span>
-            <span className="font-body-md text-sm font-semibold">Support</span>
-          </a>
+        </div>
+
+        {/* Navigation links */}
+        {renderSidebar()}
+
+        {/* Bottom: Logout */}
+        <div className="px-3 pb-6 pt-2 border-t border-white/[0.06]">
           <button
             onClick={handleLogout}
-            className="w-full text-left text-on-surface-variant hover:text-white hover:bg-white/10 px-4 py-3 flex items-center gap-3 rounded-lg transition-all cursor-pointer border-none bg-transparent"
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-white/40 hover:text-red-400 hover:bg-red-500/5 transition-all text-sm font-semibold"
           >
-            <span className="material-symbols-outlined" data-icon="logout">
-              logout
-            </span>
-            <span className="font-body-md text-sm font-semibold">Logout</span>
+            <span className="material-symbols-outlined text-[20px]">logout</span>
+            Logout
           </button>
         </div>
       </aside>
 
-      {/* Main Content Canvas */}
-      <main className="md:ml-64 pt-20 md:pt-24 px-4 sm:px-6 md:px-10 pb-12 min-h-screen relative z-10 transition-all duration-300">
+      {/* ── Main content ──────────────────────────────────────────────────── */}
+      <main className="md:ml-64 pt-16 min-h-screen relative z-10">
+        {/* Profile incomplete banner */}
         {profileIncomplete && (
-          <div className="mb-6 p-4 bg-orange-500/10 border-2 border-orange-500/25 rounded-2xl flex items-center gap-3.5 shadow-[0_4px_20px_rgba(249,115,22,0.1)]">
-            <span className="material-symbols-outlined text-orange-400 text-2xl shrink-0">warning</span>
-            <div>
-              <p className="text-xs font-bold text-white">Profile Incomplete!</p>
-              <p className="text-[10px] text-on-surface-variant font-light mt-0.5">
-                You must complete your profile (compulsory fields) in order to unlock all executive LMS features.
-              </p>
+          <div className="mx-4 mt-4 p-4 bg-orange-500/10 border border-orange-500/25 rounded-2xl flex items-center gap-3 shadow-[0_4px_20px_rgba(249,115,22,0.1)]">
+            <span className="material-symbols-outlined text-orange-400 text-xl shrink-0">warning</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-white">Profile Incomplete</p>
+              <p className="text-[11px] text-white/50 mt-0.5">Complete your profile to unlock all LMS features.</p>
             </div>
             <Link
               href="/student/profile"
-              className="ml-auto px-4 py-2 bg-orange-500 hover:bg-orange-500/90 text-black font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all decoration-none active:scale-[0.97]"
+              className="shrink-0 px-3 py-1.5 bg-orange-500 hover:bg-orange-500/90 text-black font-bold text-[11px] uppercase tracking-wider rounded-lg transition-all"
             >
-              Complete Now
+              Complete
             </Link>
           </div>
         )}
-        {children}
+        <div className="px-4 sm:px-6 md:px-8 py-6">
+          {children}
+        </div>
       </main>
+
+      {/* Notification backdrop close */}
+      {showNotifications && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+      )}
     </>
   );
 }
