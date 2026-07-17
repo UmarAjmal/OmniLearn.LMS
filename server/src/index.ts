@@ -68,7 +68,7 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.SMTP_USER || '';
 
 async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS ||
-      process.env.SMTP_USER.includes('your_admin') || process.env.SMTP_PASS.includes('your_gmail')) {
+    process.env.SMTP_USER.includes('your_admin') || process.env.SMTP_PASS.includes('your_gmail')) {
     console.warn('⚠️  SMTP not configured — skipping email send. Fill SMTP_USER & SMTP_PASS in server/.env');
     return false;
   }
@@ -134,8 +134,8 @@ app.get('/', (req, res) => {
 app.get('/api/health', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW() as current_time');
-    res.json({ 
-      status: 'ok', 
+    res.json({
+      status: 'ok',
       message: 'LMS Server is running and DB is connected!',
       dbTime: result.rows[0].current_time
     });
@@ -333,9 +333,9 @@ app.post('/api/sections/:sectionId/lessons', async (req, res) => {
       RETURNING *
     `;
     const result = await pool.query(query, [
-      sectionId, 
-      title || 'New Lesson', 
-      duration || '00:00', 
+      sectionId,
+      title || 'New Lesson',
+      duration || '00:00',
       sort_order || 0,
       media_url || ''
     ]);
@@ -414,13 +414,13 @@ app.post('/api/courses/:id/import-curriculum', async (req, res) => {
     let currentSectionName = '';
     let sectionSort = 1;
     let lessonSort = 1;
-    
+
     const importedData = [];
 
     for (let line of lines) {
       line = line.trim();
       if (!line) continue;
-      
+
       const parts = line.split(',').map((p: string) => p.trim());
       const sectionName = parts[0] || 'Introduction';
       const lessonName = parts[1];
@@ -437,7 +437,7 @@ app.post('/api/courses/:id/import-curriculum', async (req, res) => {
         const sectRes = await pool.query(sectQuery, [id, sectionName, sectionSort++]);
         currentSectionId = sectRes.rows[0].id;
         lessonSort = 1;
-        
+
         importedData.push({
           ...sectRes.rows[0],
           lessons: []
@@ -452,7 +452,7 @@ app.post('/api/courses/:id/import-curriculum', async (req, res) => {
           RETURNING *
         `;
         const lessRes = await pool.query(lessQuery, [currentSectionId, lessonName, duration, lessonSort++]);
-        
+
         // Push into the last imported section
         if (importedData.length > 0) {
           importedData[importedData.length - 1].lessons.push(lessRes.rows[0]);
@@ -470,14 +470,14 @@ app.post('/api/courses/:id/import-curriculum', async (req, res) => {
 app.post('/api/courses/:id/bulk-curriculum', async (req, res) => {
   const { id } = req.params;
   const { sections } = req.body; // Expecting array of { title, sort_order, lessons: [...] }
-  
+
   try {
     // We run this inside a transaction to ensure database consistency
     await pool.query('BEGIN');
-    
+
     // 1. Delete all existing sections (will cascade delete all lessons)
     await pool.query('DELETE FROM sections WHERE course_id = $1', [id]);
-    
+
     // 2. Insert new sections and lessons
     if (sections && Array.isArray(sections)) {
       for (let sIdx = 0; sIdx < sections.length; sIdx++) {
@@ -487,7 +487,7 @@ app.post('/api/courses/:id/bulk-curriculum', async (req, res) => {
           [id, section.title || `Section ${sIdx + 1}`, section.sort_order || (sIdx + 1)]
         );
         const sectionId = sectRes.rows[0].id;
-        
+
         if (section.lessons && Array.isArray(section.lessons)) {
           for (let lIdx = 0; lIdx < section.lessons.length; lIdx++) {
             const lesson = section.lessons[lIdx];
@@ -509,7 +509,7 @@ app.post('/api/courses/:id/bulk-curriculum', async (req, res) => {
         }
       }
     }
-    
+
     await pool.query('COMMIT');
     res.json({ success: true, message: 'Curriculum bulk saved successfully' });
   } catch (err: any) {
@@ -548,11 +548,11 @@ app.post('/api/applicants', async (req, res) => {
       RETURNING *
     `;
     const result = await pool.query(query, [
-      first_name, 
-      last_name, 
-      email, 
-      phone, 
-      academic_background || '', 
+      first_name,
+      last_name,
+      email,
+      phone,
+      academic_background || '',
       course_interest || '',
       program || ''
     ]);
@@ -576,24 +576,24 @@ app.get('/api/applicants', async (req, res) => {
 app.post('/api/applicants/:id/approve', async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
-  
+
   try {
     await client.query('BEGIN');
-    
+
     // 1. Get applicant
     const applicantRes = await client.query('SELECT * FROM applicants WHERE id = $1', [id]);
     if (applicantRes.rows.length === 0) {
       throw new Error("Applicant not found");
     }
     const applicant = applicantRes.rows[0];
-    
+
     if (applicant.status === 'approved') {
       throw new Error("Applicant already approved");
     }
 
     // 2. Hash phone as password
     const hashedPassword = await bcrypt.hash(applicant.phone, 10);
-    
+
     // 3. Create User
     const userRes = await client.query(`
       INSERT INTO users (email, password_hash, role)
@@ -668,15 +668,15 @@ app.post('/api/auth/login', async (req, res) => {
       }
     }
 
-    res.json({ 
-      success: true, 
-      token, 
-      user: { 
-        id: user.id, 
-        email: user.email, 
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
         role: user.role,
         student: studentInfo
-      } 
+      }
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -728,13 +728,13 @@ app.get('/api/students/profile', async (req, res) => {
 
 // PUT update student profile
 app.put('/api/students/profile', async (req, res) => {
-  const { 
-    userId, firstName, lastName, whatsapp, cnic, university, semester, 
-    avatarUrl, linkedinUrl, githubUrl, portfolioUrl, resumeUrl 
+  const {
+    userId, firstName, lastName, whatsapp, cnic, university, semester,
+    avatarUrl, linkedinUrl, githubUrl, portfolioUrl, resumeUrl
   } = req.body;
-  
+
   if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
-  
+
   try {
     // 1. Fetch existing student profile to preserve program track
     const currentRes = await pool.query('SELECT program FROM students WHERE user_id = $1', [userId]);
@@ -751,7 +751,7 @@ app.put('/api/students/profile', async (req, res) => {
        WHERE user_id = $13
        RETURNING *`,
       [
-        firstName, lastName, whatsapp, cnic, university, Number(semester) || null, 
+        firstName, lastName, whatsapp, cnic, university, Number(semester) || null,
         currentProgram, avatarUrl, linkedinUrl, githubUrl, portfolioUrl, resumeUrl, userId
       ]
     );
@@ -802,7 +802,7 @@ app.get('/api/students/:studentId/dashboard-stats', async (req, res) => {
     const completedRes = await pool.query("SELECT COUNT(*) FROM task_assignments WHERE student_id = $1 AND status = 'completed'", [studentId]);
     const gradedRes = await pool.query("SELECT COUNT(*) FROM task_assignments WHERE student_id = $1 AND status = 'marked'", [studentId]);
     const avgScoreRes = await pool.query("SELECT AVG(score) FROM task_assignments WHERE student_id = $1 AND status = 'marked'", [studentId]);
-    
+
     res.json({
       success: true,
       data: {

@@ -40,6 +40,12 @@ export default function StudentProfilePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Password Change State
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
   const fetchProfile = useCallback(async (uid: string) => {
     setIsLoading(true);
     try {
@@ -132,6 +138,48 @@ export default function StudentProfilePage() {
       toast.error("Network error during update.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error("All password fields are required.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const res = await fetch(`/api/auth/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          currentPassword,
+          newPassword
+        })
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        toast.error(json.error || "Failed to change password.");
+      } else {
+        toast.success("🔑 Password changed successfully!");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      }
+    } catch {
+      toast.error("Network error during password change.");
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -380,6 +428,73 @@ export default function StudentProfilePage() {
 
           </form>
 
+        </div>
+      )}
+
+      {/* Password Change Section */}
+      {!isLoading && (
+        <div className="glacier-card p-6 rounded-2xl mt-6">
+          <div className="border-b border-white/5 pb-2 mb-5">
+            <h3 className="text-xs font-extrabold text-primary uppercase tracking-wider flex items-center gap-2">
+              <span className="material-symbols-outlined text-[16px]">lock</span>
+              Account Security
+            </h3>
+            <p className="text-on-surface-variant font-light mt-1 text-[10px]">
+              If you logged in with a temporary password, please change it immediately.
+            </p>
+          </div>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <FieldLabel required>Current Password</FieldLabel>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={inputCls}
+                  required
+                />
+              </div>
+              <div>
+                <FieldLabel required>New Password</FieldLabel>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={inputCls}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <div>
+                <FieldLabel required>Confirm New Password</FieldLabel>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className={inputCls}
+                  required
+                  minLength={6}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={isChangingPassword}
+                className="bg-[#1a2b4c] hover:bg-[#20365d] border border-[#2a4374] disabled:opacity-50 text-white py-3 px-6 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all flex items-center justify-center gap-2"
+              >
+                {isChangingPassword ? (
+                  <><div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Updating...</>
+                ) : (
+                  <><span className="material-symbols-outlined text-[15px]">key</span> Update Password</>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
