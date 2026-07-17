@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface Submission {
   assignment_id: number;
@@ -49,7 +48,7 @@ export default function SubmittedTasksPage() {
   const fetchSubmissions = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/tasks/submitted`);
+      const res = await fetch(`/api/tasks/submitted`);
       const json = await res.json();
       if (json.success) {
         setSubmissions(json.data || []);

@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface Student {
   id: number;
@@ -38,14 +37,14 @@ export default function TrainerStudentsPage() {
   const fetchStudents = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/students/full-report`);
+      const res = await fetch(`/api/students/full-report`);
       const json = await res.json();
       if (json.success) {
         setStudents(json.data || []);
         setFiltered(json.data || []);
       } else {
         // Fallback to basic list
-        const fallback = await fetch(`${API_BASE_URL}/api/students`);
+        const fallback = await fetch(`/api/students`);
         const fj = await fallback.json();
         if (fj.success) { setStudents(fj.data || []); setFiltered(fj.data || []); }
       }

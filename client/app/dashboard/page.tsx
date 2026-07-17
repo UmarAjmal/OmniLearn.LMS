@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+// Uses relative /api/* paths → Next.js route handlers proxy to Express backend
 
 interface AdminStats {
   students: number;
@@ -121,9 +121,10 @@ export default function AdminDashboardPage() {
   const fetchStats = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/admin-stats`);
+      const res = await fetch(`/api/dashboard/admin-stats`);
       const json = await res.json();
       if (json.success) setStats(json.data);
+      else console.error("admin-stats error:", json.error);
     } catch (err) {
       console.error("Failed to load admin stats:", err);
     } finally {

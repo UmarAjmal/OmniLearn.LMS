@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface Lesson {
   id: number;
@@ -56,7 +55,7 @@ export default function CourseDetailsPage() {
 
     const fetchCourseDetails = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/courses/${courseId}`);
+        const response = await fetch(`/api/courses/${courseId}`);
         const json = await response.json();
         if (json.success) {
           setCourse(json.data);

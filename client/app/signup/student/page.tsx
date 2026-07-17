@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 // ── All logic below is unchanged from original. Only the UI wrapper was updated. ──
 
@@ -34,7 +33,7 @@ export default function StudentSignupPage() {
         course_interest: formData.get("interest"),
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/applicants`, {
+      const response = await fetch(`/api/applicants`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),

@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 const TRACK_LABELS: Record<string, string> = {
   "fullstack-ai": "Full Stack AI Engineer",
@@ -471,7 +470,7 @@ export default function TrainingApplicantsPage() {
 
   const fetchApplications = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/training-applications`);
+      const res = await fetch(`/api/training-applications`);
       const data = await res.json();
       if (data.success) setApplications(data.data);
     } catch (err) {
@@ -491,7 +490,7 @@ export default function TrainingApplicantsPage() {
 
   const handleApprove = async (id: string, note?: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/training-applications/${id}/approve`, {
+      const res = await fetch(`/api/training-applications/${id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ note: note || "" }),
@@ -511,7 +510,7 @@ export default function TrainingApplicantsPage() {
 
   const handleReject = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/training-applications/${id}/reject`, {
+      const res = await fetch(`/api/training-applications/${id}/reject`, {
         method: "POST",
       });
       const data = await res.json();

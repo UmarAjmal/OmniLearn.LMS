@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 const TRACKS = [
   { id: "fullstack-ai", label: "Full Stack AI Engineer", icon: "smart_toy" },
@@ -209,7 +208,7 @@ export default function ApplyPage() {
     setSubmitError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/training-applications`, {
+      const response = await fetch(`/api/training-applications`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

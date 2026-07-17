@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface Stats {
   totalStudents: number;
@@ -65,8 +64,8 @@ export default function TrainerDashboardPage() {
     setIsLoading(true);
     try {
       const [statsRes, submissionsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/trainers/dashboard-stats`),
-        fetch(`${API_BASE_URL}/api/tasks/submitted`),
+        fetch(`/api/trainers/dashboard-stats`),
+        fetch(`/api/tasks/submitted`),
       ]);
       const statsJson = await statsRes.json();
       const submissionsJson = await submissionsRes.json();

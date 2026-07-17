@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 export default function TrainerProfilePage() {
   const router = useRouter();
@@ -28,7 +27,7 @@ export default function TrainerProfilePage() {
   const fetchProfile = useCallback(async (uid: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/trainers/profile?userId=${uid}`);
+      const res = await fetch(`/api/trainers/profile?userId=${uid}`);
       const json = await res.json();
       if (json.success && json.data) {
         const d = json.data;
@@ -55,7 +54,7 @@ export default function TrainerProfilePage() {
     if (!userId) return;
     setIsSaving(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/trainers/profile`, {
+      const res = await fetch(`/api/trainers/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, phone, avatarUrl }),
@@ -82,7 +81,7 @@ export default function TrainerProfilePage() {
     }
     setIsChangingPassword(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
+      const res = await fetch(`/api/auth/change-password`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, currentPassword, newPassword }),

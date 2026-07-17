@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 const COURSES = [
   { id: "fullstack-ai", label: "Full Stack AI Engineer", icon: "smart_toy" },
@@ -58,7 +57,7 @@ export default function NewTaskPage() {
     const fetchStudents = async () => {
       setIsLoadingStudents(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/api/students`);
+        const res = await fetch(`/api/students`);
         const json = await res.json();
         if (json.success) {
           setStudents(json.data);
@@ -169,7 +168,7 @@ export default function NewTaskPage() {
     const course = COURSES.find(c => c.id === selectedCourse);
     setIsSubmittingTask(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/tasks`, {
+      const res = await fetch(`/api/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

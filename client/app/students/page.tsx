@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface Student {
   id: number;
@@ -37,7 +36,7 @@ export default function StudentsPage() {
     const fetchData = async () => {
       try {
         // 1. Fetch Students
-        const studentsRes = await fetch(`${API_BASE_URL}/api/students`);
+        const studentsRes = await fetch(`/api/students`);
         const studentsJson = await studentsRes.json();
         if (studentsJson.success) {
           setStudents(studentsJson.data);
@@ -45,14 +44,14 @@ export default function StudentsPage() {
         }
 
         // 2. Fetch Courses
-        const coursesRes = await fetch(`${API_BASE_URL}/api/courses`);
+        const coursesRes = await fetch(`/api/courses`);
         const coursesJson = await coursesRes.json();
         if (coursesJson.success) {
           setAvailableCourses(coursesJson.data);
         }
 
         // 3. Fetch pending training applications count
-        const appsRes = await fetch(`${API_BASE_URL}/api/training-applications/count`);
+        const appsRes = await fetch(`/api/training-applications/count`);
         const appsJson = await appsRes.json();
         if (appsJson.success) {
           setPendingApplicantsCount(appsJson.count);
@@ -66,7 +65,7 @@ export default function StudentsPage() {
     fetchData();
     // Poll every 30 seconds for new applications
     const interval = setInterval(() => {
-      fetch(`${API_BASE_URL}/api/training-applications/count`)
+      fetch(`/api/training-applications/count`)
         .then(r => r.json())
         .then(d => { if (d.success) setPendingApplicantsCount(d.count); })
         .catch(() => {});

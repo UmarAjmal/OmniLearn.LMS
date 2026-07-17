@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+// All fetch calls use relative /api/* paths → served by Next.js route handlers
+// which proxy to the Express backend. This prevents the HTML-404 SyntaxError.
 
 const COURSES = [
   { id: "fullstack-ai", label: "Full Stack AI Engineer" },
@@ -45,10 +46,14 @@ export default function AdminTrainersPage() {
   const fetchTrainers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/trainers`);
+      const res = await fetch(`/api/trainers`);
       const json = await res.json();
       if (json.success) setTrainers(json.data || []);
-    } catch { toast.error("Failed to load trainers."); }
+      else toast.error(json.error || "Failed to load trainers.");
+    } catch (err) {
+      console.error("fetchTrainers error:", err);
+      toast.error("Failed to load trainers.");
+    }
     finally { setIsLoading(false); }
   }, []);
 
@@ -71,7 +76,7 @@ export default function AdminTrainersPage() {
     }
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/trainers`, {
+      const res = await fetch(`/api/trainers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ firstName, lastName, email, phone, department, assignedCourses: selectedCourses }),
@@ -85,18 +90,24 @@ export default function AdminTrainersPage() {
       } else {
         toast.error(json.error || "Failed to create trainer.");
       }
-    } catch { toast.error("Network error."); }
+    } catch (err) {
+      console.error("handleCreate error:", err);
+      toast.error("Network error creating trainer.");
+    }
     finally { setIsSubmitting(false); }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this trainer? This cannot be undone.")) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/trainers/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/trainers/${id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) { toast.success("Trainer deleted."); fetchTrainers(); }
       else toast.error(json.error || "Failed to delete.");
-    } catch { toast.error("Network error."); }
+    } catch (err) {
+      console.error("handleDelete error:", err);
+      toast.error("Network error deleting trainer.");
+    }
   };
 
   return (

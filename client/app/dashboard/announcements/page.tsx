@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+// Uses relative /api/* paths → Next.js route handlers proxy to Express backend
 
 interface Announcement {
   id: number;
@@ -28,10 +28,14 @@ export default function AdminAnnouncementsPage() {
   const fetchAnnouncements = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/announcements`);
+      const res = await fetch(`/api/announcements`);
       const json = await res.json();
       if (json.success) setAnnouncements(json.data || []);
-    } catch { toast.error("Failed to load."); }
+      else toast.error(json.error || "Failed to load announcements.");
+    } catch (err) {
+      console.error("fetchAnnouncements error:", err);
+      toast.error("Failed to load announcements.");
+    }
     finally { setIsLoading(false); }
   }, []);
 
@@ -46,7 +50,7 @@ export default function AdminAnnouncementsPage() {
     setIsPosting(true);
     try {
       const uid = localStorage.getItem("lms_user_id");
-      const res = await fetch(`${API_BASE_URL}/api/announcements`, {
+      const res = await fetch(`/api/announcements`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, content, authorId: uid, authorName: "Admin", role: "admin", target: "all", sendEmail }),
@@ -56,17 +60,23 @@ export default function AdminAnnouncementsPage() {
         toast.success("Announcement published!");
         setTitle(""); setContent(""); setSendEmail(false); setShowForm(false);
         fetchAnnouncements();
-      } else toast.error(json.error || "Failed.");
-    } catch { toast.error("Network error."); }
+      } else toast.error(json.error || "Failed to publish.");
+    } catch (err) {
+      console.error("handlePost error:", err);
+      toast.error("Network error.");
+    }
     finally { setIsPosting(false); }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this announcement?")) return;
     try {
-      await fetch(`${API_BASE_URL}/api/announcements/${id}`, { method: "DELETE" });
+      await fetch(`/api/announcements/${id}`, { method: "DELETE" });
       toast.success("Deleted."); fetchAnnouncements();
-    } catch { toast.error("Failed."); }
+    } catch (err) {
+      console.error("handleDelete error:", err);
+      toast.error("Failed to delete.");
+    }
   };
 
   return (

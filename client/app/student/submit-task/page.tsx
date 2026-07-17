@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import DragDropUploader from "@/components/DragDropUploader";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface TaskAssignment {
   assignment_id: number;
@@ -51,7 +50,7 @@ export default function SubmitTaskPage() {
   const fetchTasks = useCallback(async (id: number) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/students/${id}/tasks`);
+      const res = await fetch(`/api/students/${id}/tasks`);
       const json = await res.json();
       if (json.success) {
         // Only keep pending ones for submission
@@ -80,7 +79,7 @@ export default function SubmitTaskPage() {
 
     if (!infoStr || infoStr === "undefined" || infoStr === "null") {
       if (userId) {
-        fetch(`${API_BASE_URL}/api/students/profile?userId=${userId}`)
+        fetch(`/api/students/profile?userId=${userId}`)
           .then(r => r.json())
           .then(json => {
             if (json.success && json.data) {
@@ -185,7 +184,7 @@ export default function SubmitTaskPage() {
     }
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/tasks/assignments/${selectedAssignmentId}/submit`, {
+      const res = await fetch(`/api/tasks/assignments/${selectedAssignmentId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

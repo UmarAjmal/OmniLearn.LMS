@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import DragDropUploader from "@/components/DragDropUploader";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 const TRACKS = [
   { id: "fullstack-ai", label: "Full Stack AI Engineer" },
@@ -44,7 +43,7 @@ export default function StudentProfilePage() {
   const fetchProfile = useCallback(async (uid: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/students/profile?userId=${uid}`);
+      const res = await fetch(`/api/students/profile?userId=${uid}`);
       const json = await res.json();
       if (json.success && json.data) {
         const d = json.data;
@@ -102,7 +101,7 @@ export default function StudentProfilePage() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/students/profile`, {
+      const res = await fetch(`/api/students/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

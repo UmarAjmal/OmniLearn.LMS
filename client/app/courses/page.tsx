@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface Course {
   id: number;
@@ -37,7 +36,7 @@ export default function CoursesPage() {
   useEffect(() => {
     const fetchCourses = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/courses`);
+        const response = await fetch(`/api/courses`);
         const json = await response.json();
         if (json.success) {
           const coursesData = json.data as Course[];

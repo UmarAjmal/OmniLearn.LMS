@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface TaskAssignment {
   assignment_id: number;
@@ -33,7 +32,7 @@ export default function StudentTasksListPage() {
   const fetchTasks = useCallback(async (studentId: number) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/students/${studentId}/tasks`);
+      const res = await fetch(`/api/students/${studentId}/tasks`);
       const json = await res.json();
       if (json.success) {
         setAssignments(json.data || []);
@@ -60,7 +59,7 @@ export default function StudentTasksListPage() {
 
     if (!infoStr || infoStr === "undefined" || infoStr === "null") {
       if (userId) {
-        fetch(`${API_BASE_URL}/api/students/profile?userId=${userId}`)
+        fetch(`/api/students/profile?userId=${userId}`)
           .then(r => r.json())
           .then(json => {
             if (json.success && json.data) {

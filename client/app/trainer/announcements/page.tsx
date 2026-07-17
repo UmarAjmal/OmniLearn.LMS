@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface Announcement {
   id: number;
@@ -30,7 +29,7 @@ export default function TrainerAnnouncementsPage() {
   const fetchAnnouncements = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/announcements`);
+      const res = await fetch(`/api/announcements`);
       const json = await res.json();
       if (json.success) setAnnouncements(json.data || []);
     } catch {
@@ -47,7 +46,7 @@ export default function TrainerAnnouncementsPage() {
     setAuthorId(uid);
     // Try to get trainer name
     if (uid) {
-      fetch(`${API_BASE_URL}/api/trainers/profile?userId=${uid}`)
+      fetch(`/api/trainers/profile?userId=${uid}`)
         .then(r => r.json())
         .then(res => {
           if (res.success && res.data) setAuthorName(`${res.data.first_name} ${res.data.last_name}`);
@@ -63,7 +62,7 @@ export default function TrainerAnnouncementsPage() {
     }
     setIsPosting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/announcements`, {
+      const res = await fetch(`/api/announcements`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, content, authorId, authorName, role: "trainer", target: "all", sendEmail }),
@@ -89,7 +88,7 @@ export default function TrainerAnnouncementsPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this announcement?")) return;
     try {
-      await fetch(`${API_BASE_URL}/api/announcements/${id}`, { method: "DELETE" });
+      await fetch(`/api/announcements/${id}`, { method: "DELETE" });
       toast.success("Announcement deleted.");
       fetchAnnouncements();
     } catch {

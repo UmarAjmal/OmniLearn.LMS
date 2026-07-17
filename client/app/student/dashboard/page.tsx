@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface DashboardStats {
   totalTasks: number;
@@ -36,7 +35,7 @@ export default function StudentDashboardPage() {
 
   const fetchStats = useCallback(async (studentId: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/students/${studentId}/dashboard-stats`);
+      const res = await fetch(`/api/students/${studentId}/dashboard-stats`);
       const json = await res.json();
       if (json.success) {
         setStats(json.data);

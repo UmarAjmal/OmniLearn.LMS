@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+// Uses relative /api/* paths → Next.js route handlers proxy to Express backend
 
 export default function AdminReportsPage() {
   const router = useRouter();
@@ -17,14 +17,19 @@ export default function AdminReportsPage() {
     setIsLoading(true);
     try {
       const [attRes, studRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/attendance/summary`),
-        fetch(`${API_BASE_URL}/api/students/full-report`),
+        fetch(`/api/attendance/summary`),
+        fetch(`/api/students/full-report`),
       ]);
       const attJson = await attRes.json();
       const studJson = await studRes.json();
       if (attJson.success) setAttendanceSummary(attJson.data || []);
+      else console.error("Attendance summary error:", attJson.error);
       if (studJson.success) setStudentReport(studJson.data || []);
-    } catch { toast.error("Failed to load reports."); }
+      else console.error("Student full-report error:", studJson.error);
+    } catch (err) {
+      console.error("fetchReports error:", err);
+      toast.error("Failed to load reports.");
+    }
     finally { setIsLoading(false); }
   }, []);
 

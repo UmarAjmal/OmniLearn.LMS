@@ -4,8 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
+// Uses relative /api/* paths → Next.js catch-all proxy forwards to Express backend
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -151,7 +150,7 @@ export default function TaskReviewPage() {
     setIsLoading(true);
     setFetchError(null);
     try {
-      const res  = await fetch(`${API_BASE_URL}/api/tasks/assignments/${assignmentId}`);
+      const res  = await fetch(`/api/tasks/assignments/${assignmentId}`);
       const json = await res.json();
       if (!res.ok || !json.success) {
         setFetchError(json.error || "Failed to load assignment details.");
@@ -221,7 +220,7 @@ export default function TaskReviewPage() {
     if (!subDescription.trim()) { toast.error("Please write a description."); return; }
     setIsSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/tasks/assignments/${assignmentId}/submit`, {
+      const res = await fetch(`/api/tasks/assignments/${assignmentId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -244,7 +243,7 @@ export default function TaskReviewPage() {
     if (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100) { toast.error("Score must be 0–100."); return; }
     setIsGrading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/tasks/assignments/${assignmentId}/grade`, {
+      const res = await fetch(`/api/tasks/assignments/${assignmentId}/grade`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ score: scoreNum, feedback: gradeFeedback }),

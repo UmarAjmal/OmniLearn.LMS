@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 export default function StudentLoginPage() {
   const router = useRouter();
@@ -41,7 +40,7 @@ export default function StudentLoginPage() {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const res = await fetch(`/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

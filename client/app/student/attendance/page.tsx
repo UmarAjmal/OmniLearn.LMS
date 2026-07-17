@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface AttendanceRecord {
   id: number;
@@ -44,7 +43,7 @@ export default function StudentAttendancePage() {
   const fetchAttendance = useCallback(async (id: number, month: number, year: number) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/attendance/student/${id}?month=${month}&year=${year}`);
+      const res = await fetch(`/api/attendance/student/${id}?month=${month}&year=${year}`);
       const json = await res.json();
       if (json.success) {
         setRecords(json.data || []);

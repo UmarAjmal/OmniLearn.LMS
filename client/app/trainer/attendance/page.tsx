@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
 interface Student {
   id: number;
@@ -36,7 +35,7 @@ export default function TrainerAttendancePage() {
   const fetchStudents = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/students`);
+      const res = await fetch(`/api/students`);
       const json = await res.json();
       if (json.success) {
         setStudents(json.data || []);
@@ -54,7 +53,7 @@ export default function TrainerAttendancePage() {
 
   const fetchExistingAttendance = useCallback(async (date: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/attendance/date/${date}`);
+      const res = await fetch(`/api/attendance/date/${date}`);
       const json = await res.json();
       if (json.success && json.data.length > 0) {
         const map: Record<number, AttendanceStatus> = {};
@@ -91,7 +90,7 @@ export default function TrainerAttendancePage() {
         studentId: s.id,
         status: attendance[s.id] || "present",
       }));
-      const res = await fetch(`${API_BASE_URL}/api/attendance`, {
+      const res = await fetch(`/api/attendance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ records, date: selectedDate }),
