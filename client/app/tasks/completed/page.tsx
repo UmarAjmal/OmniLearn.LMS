@@ -91,7 +91,7 @@ export default function CompletedTasksPage() {
   }, [selectedCourse, fetchAssignments]);
 
   const handleOpenReview = (assignmentId: number) => {
-    window.open(`/tasks/review/${assignmentId}`, "_blank", "noopener,noreferrer");
+    window.open(`/trainer/submitted-tasks`, "_blank", "noopener,noreferrer");
   };
 
   const submittedList = assignments.filter(a => a.status === "completed");

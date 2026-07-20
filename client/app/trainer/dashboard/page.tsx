@@ -192,8 +192,8 @@ export default function TrainerDashboardPage() {
                     {sub.status === "marked" ? "Reviewed" : "Pending Review"}
                   </span>
                   <Link
-                    href={`/tasks/review/${sub.assignment_id}`}
-                    className="text-[11px] text-[#F6B32B] font-semibold hover:underline"
+                    href={`/trainer/submitted-tasks`}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#F6B32B]/10 hover:bg-[#F6B32B]/20 text-[#F6B32B] rounded-lg text-[10px] font-bold transition-all"
                   >
                     Review
                   </Link>

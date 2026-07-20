@@ -1,7 +1,10 @@
 import express from 'express';
+import fs from 'fs';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { supabase, pool } from './db.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -10,6 +13,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config();
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
 
 // ==========================================
 // GitHub Image Upload Configuration
@@ -94,6 +99,9 @@ app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
 
+// Serve local uploads
+app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // ==========================================
 // Image Upload Endpoint — GitHub Contents API
 // ==========================================
@@ -115,8 +123,21 @@ app.post('/api/upload', async (req, res) => {
     // Sanitize filename
     const safeFilename = Date.now() + '_' + path.basename(filename).replace(/[^a-zA-Z0-9.\-_]/g, '');
 
-    // Upload via GitHub Contents API (creates a commit in the repo)
-    const imageUrl = await uploadToGitHub(safeFilename, pureBase64);
+    let imageUrl = '';
+    
+    if (process.env.GITHUB_TOKEN) {
+      // Upload via GitHub Contents API (creates a commit in the repo)
+      imageUrl = await uploadToGitHub(safeFilename, pureBase64);
+    } else {
+      console.warn('⚠️ GITHUB_TOKEN not set. Saving image locally.');
+      const uploadsDir = path.join(__dirname, '../uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const localPath = path.join(uploadsDir, safeFilename);
+      fs.writeFileSync(localPath, Buffer.from(pureBase64, 'base64'));
+      imageUrl = `/api/uploads/${safeFilename}`;
+    }
 
     res.json({ success: true, url: imageUrl });
   } catch (err: any) {
@@ -532,11 +553,6 @@ app.get('/api/users', async (req, res) => {
 // ==========================================
 // APPLICANTS & STUDENTS API ROUTES
 // ==========================================
-
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
 
 // Submit new Application
 app.post('/api/applicants', async (req, res) => {
@@ -984,12 +1000,18 @@ app.post('/api/training-applications/:id/approve', async (req, res) => {
     // 3. Check or Create User Account
     let userRes = await client.query("SELECT id FROM users WHERE email = $1", [app_data.gmail]);
     let userId;
+    
+    // Build a readable temporary password from their WhatsApp digits
+    // Format: FalconSwift@ + last 4 digits of WhatsApp (e.g. FalconSwift@3456)
+    // Falls back to FalconSwift@1234 if no WhatsApp number is stored.
+    const whatsappDigits = (app_data.whatsapp || '').replace(/\D/g, '').slice(-4) || '1234';
+    const tempPassword = `FalconSwift@${whatsappDigits}`;
+    
     if (userRes.rows.length > 0) {
       userId = userRes.rows[0].id;
     } else {
-      // Create user with default password (using whatsapp phone number as password)
-      const defaultPassword = app_data.whatsapp || 'FalconSwift123';
-      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+      // Create user with the documented temporary password
+      const hashedPassword = await bcrypt.hash(tempPassword, 10);
       const newUserRes = await client.query(
         "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'student') RETURNING id",
         [app_data.gmail, hashedPassword]
@@ -1015,7 +1037,11 @@ app.post('/api/training-applications/:id/approve', async (req, res) => {
     await client.query('COMMIT');
     client.release();
 
-    // 5. Send acceptance email
+    // 5. Send acceptance email WITH login credentials
+    const LOGIN_URL = process.env.NEXT_PUBLIC_APP_URL
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/login/student`
+      : 'https://omnilearn-lms.vercel.app/login/student';
+
     const trackLabels: Record<string, string> = {
       'fullstack-ai': 'Full Stack AI Engineer',
       'devops': 'DevOps',
@@ -1051,13 +1077,36 @@ app.post('/api/training-applications/:id/approve', async (req, res) => {
           <div style="padding:36px 40px;">
             <p style="font-size:16px;color:#1e293b;margin:0 0 16px;">Dear <strong>${app_data.full_name}</strong>,</p>
             <p style="font-size:15px;color:#475569;line-height:1.7;margin:0 0 20px;">
-              We are delighted to inform you that your application for <strong>Falcon Swift Training & Internships</strong> has been <strong style="color:#16a34a;">accepted</strong>. Congratulations on taking this important step in your career journey!
+              We are delighted to inform you that your application for <strong>Falcon Swift Training & Internships</strong> has been <strong style="color:#16a34a;">accepted</strong>. Congratulations!
             </p>
             <div style="margin-bottom:20px;">
               <p style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 10px;">Selected Tracks</p>
               <div>${tracksHtml}</div>
             </div>
             ${noteSection}
+
+            <!-- ✅ LOGIN CREDENTIALS BOX -->
+            <div style="margin-top:28px;margin-bottom:8px;padding:24px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-radius:14px;border:1.5px solid #86efac;">
+              <p style="font-size:13px;font-weight:800;color:#15803d;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 14px;">🔑 Your Student Portal Login</p>
+              <table style="width:100%;font-size:15px;color:#1e293b;border-collapse:collapse;">
+                <tr>
+                  <td style="padding:6px 0;color:#64748b;width:130px;font-size:13px;">Login URL</td>
+                  <td><a href="${LOGIN_URL}" style="color:#1d4ed8;font-weight:600;">${LOGIN_URL}</a></td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0;color:#64748b;font-size:13px;">Email</td>
+                  <td><strong>${app_data.gmail}</strong></td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0;color:#64748b;font-size:13px;">Temp Password</td>
+                  <td><strong style="font-size:17px;letter-spacing:0.05em;color:#166534;background:#bbf7d0;padding:2px 8px;border-radius:6px;">${tempPassword}</strong></td>
+                </tr>
+              </table>
+              <p style="font-size:12px;color:#64748b;margin:14px 0 0;line-height:1.6;">
+                ⚠️ This is a <strong>temporary password</strong>. Please log in and change it from your Student Profile page immediately.
+              </p>
+            </div>
+
             <div style="margin-top:24px;padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;">
               <p style="font-size:13px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 12px;">Your Details on File</p>
               <table style="width:100%;font-size:14px;color:#1e293b;">
@@ -1068,7 +1117,7 @@ app.post('/api/training-applications/:id/approve', async (req, res) => {
               </table>
             </div>
             <p style="font-size:15px;color:#475569;line-height:1.7;margin:24px 0 0;">
-              Our team will reach out to you on your WhatsApp number (<strong>${app_data.whatsapp}</strong>) with further details about the schedule and onboarding process.
+              Our team will also reach out on WhatsApp (<strong>${app_data.whatsapp}</strong>) with schedule and onboarding details.
             </p>
           </div>
           <!-- Footer -->
@@ -1390,6 +1439,47 @@ app.get('/api/tasks/assignments/:assignmentId', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+// GET all submitted tasks (for trainer review)
+app.get('/api/tasks/submitted', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        ta.id AS assignment_id,
+        ta.task_id,
+        ta.student_id,
+        ta.status,
+        ta.score,
+        ta.feedback,
+        ta.graded_at,
+        ta.created_at AS assigned_at,
+        t.title AS task_name,
+        t.course_label,
+        t.due_date,
+        s.first_name,
+        s.last_name,
+        s.enrollment_id,
+        s.avatar_url,
+        u.email,
+        ts.github_url,
+        ts.live_url,
+        ts.description AS submission_desc,
+        ts.notes AS submission_notes,
+        ts.submitted_at,
+        ts.image_urls,
+        ts.additional_links
+      FROM task_assignments ta
+      JOIN tasks t ON t.id = ta.task_id
+      JOIN students s ON s.id = ta.student_id
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN task_submissions ts ON ts.assignment_id = ta.id
+      WHERE ta.status IN ('completed', 'marked')
+      ORDER BY ts.submitted_at DESC NULLS LAST, ta.created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // GET single task by id — MUST be LAST among /api/tasks/* routes
 app.get('/api/tasks/:id', async (req, res) => {
@@ -1564,48 +1654,6 @@ app.get('/api/trainers/dashboard-stats', async (req, res) => {
           : 0,
       }
     });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// GET all submitted tasks (for trainer review)
-app.get('/api/tasks/submitted', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT
-        ta.id AS assignment_id,
-        ta.task_id,
-        ta.student_id,
-        ta.status,
-        ta.score,
-        ta.feedback,
-        ta.graded_at,
-        ta.created_at AS assigned_at,
-        t.title AS task_name,
-        t.course_label,
-        t.due_date,
-        s.first_name,
-        s.last_name,
-        s.enrollment_id,
-        s.avatar_url,
-        u.email,
-        ts.github_url,
-        ts.live_url,
-        ts.description AS submission_desc,
-        ts.notes AS submission_notes,
-        ts.submitted_at,
-        ts.image_urls,
-        ts.additional_links
-      FROM task_assignments ta
-      JOIN tasks t ON t.id = ta.task_id
-      JOIN students s ON s.id = ta.student_id
-      JOIN users u ON u.id = s.user_id
-      LEFT JOIN task_submissions ts ON ts.assignment_id = ta.id
-      WHERE ta.status IN ('completed', 'marked')
-      ORDER BY ts.submitted_at DESC NULLS LAST, ta.created_at DESC
-    `);
-    res.json({ success: true, data: result.rows });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }

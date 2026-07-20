@@ -59,6 +59,9 @@ export default function StudentLoginPage() {
           }
           toast.success("Login successful. Welcome to your Student Portal!");
           router.push("/student/dashboard");
+        } else if (json.user.role === "trainer") {
+          toast.success("Login successful. Welcome to Trainer Portal!");
+          router.push("/trainer/dashboard");
         } else {
           // Staff/admin logged in via student portal — redirect appropriately
           toast.success("Login successful. Welcome back, Administrator!");

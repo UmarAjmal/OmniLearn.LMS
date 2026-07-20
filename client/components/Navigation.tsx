@@ -299,7 +299,6 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
           <NavSection label="Tasks" />
           <NavLink href="/tasks/new" icon="add_task" label="Assign Task" active={pathname === "/tasks/new"} onClick={closeMobile} />
           <NavLink href="/trainer/submitted-tasks" icon="inbox" label="Submitted Tasks" active={pathname === "/trainer/submitted-tasks"} onClick={closeMobile} />
-          <NavLink href="/tasks/review" icon="rate_review" label="Review Tasks" active={pathname.startsWith("/tasks/review")} onClick={closeMobile} />
           <NavSection label="Management" />
           <NavLink href="/trainer/students" icon="group" label="Students" active={pathname === "/trainer/students"} onClick={closeMobile} />
           <NavLink href="/trainer/attendance" icon="event_available" label="Mark Attendance" active={pathname === "/trainer/attendance"} onClick={closeMobile} />

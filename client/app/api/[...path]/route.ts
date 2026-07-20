@@ -61,6 +61,16 @@ async function handler(
     // If the upstream returns non-JSON (HTML error page from Render 404),
     // synthesise a clean JSON error so the frontend never sees "<DOCTYPE"
     const contentType = upstream.headers.get("content-type") || "";
+    
+    // Forward images and binaries natively
+    if (contentType.startsWith("image/") || contentType.startsWith("application/octet-stream")) {
+      const buffer = await upstream.arrayBuffer();
+      return new NextResponse(buffer, {
+        status: upstream.status,
+        headers: { "Content-Type": contentType },
+      });
+    }
+
     if (!contentType.includes("application/json")) {
       const text = await upstream.text();
       console.error(

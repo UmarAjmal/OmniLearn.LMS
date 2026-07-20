@@ -44,26 +44,32 @@ export default function DragDropUploader({
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = async () => {
-        const base64Data = reader.result as string;
-        
-        // Upload to server endpoint
-        const res = await fetch(`${API_BASE_URL}/api/upload`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filename: file.name,
-            base64Data
-          })
-        });
+        try {
+          const base64Data = reader.result as string;
+          
+          // Upload to server endpoint
+          const res = await fetch(`/api/upload`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              filename: file.name,
+              base64Data
+            })
+          });
 
-        const json = await res.json();
-        if (res.ok && json.success && json.url) {
-          toast.success("Image uploaded and committed successfully!");
-          onUploadSuccess(json.url);
-        } else {
-          toast.error(json.error || "Failed to upload image.");
+          const json = await res.json();
+          if (res.ok && json.success && json.url) {
+            toast.success("Image uploaded successfully!");
+            onUploadSuccess(json.url);
+          } else {
+            toast.error(json.error || "Failed to upload image.");
+          }
+        } catch (err) {
+          console.error("Upload error:", err);
+          toast.error("Upload failed due to network error.");
+        } finally {
+          setIsUploading(false);
         }
-        setIsUploading(false);
       };
       reader.onerror = () => {
         toast.error("Failed to read image file.");

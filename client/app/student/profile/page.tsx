@@ -159,7 +159,7 @@ export default function StudentProfilePage() {
     setIsChangingPassword(true);
     try {
       const res = await fetch(`/api/auth/change-password`, {
-        method: "POST",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
