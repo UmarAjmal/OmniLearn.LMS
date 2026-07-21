@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 export default function TrainerProfilePage() {
@@ -27,7 +28,7 @@ export default function TrainerProfilePage() {
   const fetchProfile = useCallback(async (uid: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/trainers/profile?userId=${uid}`);
+      const res = await apiClient(`/api/trainers/profile?userId=${uid}`);
       const json = await res.json();
       if (json.success && json.data) {
         const d = json.data;
@@ -54,7 +55,7 @@ export default function TrainerProfilePage() {
     if (!userId) return;
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/trainers/profile`, {
+      const res = await apiClient(`/api/trainers/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, phone, avatarUrl }),
@@ -81,7 +82,7 @@ export default function TrainerProfilePage() {
     }
     setIsChangingPassword(true);
     try {
-      const res = await fetch(`/api/auth/change-password`, {
+      const res = await apiClient(`/api/auth/change-password`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, currentPassword, newPassword }),

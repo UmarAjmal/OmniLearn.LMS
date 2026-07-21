@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface DashboardStats {
@@ -35,7 +36,7 @@ export default function StudentDashboardPage() {
 
   const fetchStats = useCallback(async (studentId: number) => {
     try {
-      const res = await fetch(`/api/students/${studentId}/dashboard-stats`);
+      const res = await apiClient(`/api/students/${studentId}/dashboard-stats`);
       const json = await res.json();
       if (json.success) {
         setStats(json.data);

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 // Uses relative /api/* paths → Next.js route handlers proxy to Express backend
 
@@ -17,8 +18,8 @@ export default function AdminReportsPage() {
     setIsLoading(true);
     try {
       const [attRes, studRes] = await Promise.all([
-        fetch(`/api/attendance/summary`),
-        fetch(`/api/students/full-report`),
+        apiClient(`/api/attendance/summary`),
+        apiClient(`/api/students/full-report`),
       ]);
       const attJson = await attRes.json();
       const studJson = await studRes.json();

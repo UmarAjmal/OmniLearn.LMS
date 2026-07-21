@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface Lesson {
@@ -55,7 +56,7 @@ export default function CourseDetailsPage() {
 
     const fetchCourseDetails = async () => {
       try {
-        const response = await fetch(`/api/courses/${courseId}`);
+        const response = await apiClient(`/api/courses/${courseId}`);
         const json = await response.json();
         if (json.success) {
           setCourse(json.data);

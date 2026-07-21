@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface TaskAssignment {
@@ -32,7 +33,7 @@ export default function StudentTasksListPage() {
   const fetchTasks = useCallback(async (studentId: number) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/students/${studentId}/tasks`);
+      const res = await apiClient(`/api/students/${studentId}/tasks`);
       const json = await res.json();
       if (json.success) {
         setAssignments(json.data || []);
@@ -50,6 +51,7 @@ export default function StudentTasksListPage() {
     const userId = localStorage.getItem("lms_user_id");
 
     const handleLogout = () => {
+      localStorage.removeItem("lms_token");
       localStorage.removeItem("lms_auth");
       localStorage.removeItem("lms_user_role");
       localStorage.removeItem("lms_user_id");
@@ -59,7 +61,7 @@ export default function StudentTasksListPage() {
 
     if (!infoStr || infoStr === "undefined" || infoStr === "null") {
       if (userId) {
-        fetch(`/api/students/profile?userId=${userId}`)
+        apiClient(`/api/students/profile?userId=${userId}`)
           .then(r => r.json())
           .then(json => {
             if (json.success && json.data) {

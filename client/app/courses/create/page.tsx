@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import Link from "next/link";
+import { apiClient } from "@/lib/apiClient";
 
 interface Lesson {
   id?: number;
@@ -95,14 +96,14 @@ export default function CreateCourse() {
       
       if (courseId) {
         // Update existing course
-        response = await fetch(`/api/courses/${courseId}`, {
+        response = await apiClient(`/api/courses/${courseId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       } else {
         // Create new course
-        response = await fetch(`/api/courses`, {
+        response = await apiClient(`/api/courses`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -144,7 +145,7 @@ export default function CreateCourse() {
   // ========================================================
   const fetchCurriculum = async (id: number) => {
     try {
-      const res = await fetch(`/api/courses/${id}`);
+      const res = await apiClient(`/api/courses/${id}`);
       const json = await res.json();
       if (json.success) {
         const loadedSections = (json.data.sections || []).map((s: any) => ({
@@ -172,7 +173,7 @@ export default function CreateCourse() {
     }
     setIsImporting(true);
     try {
-      const response = await fetch(`/api/courses/${courseId}/bulk-curriculum`, {
+      const response = await apiClient(`/api/courses/${courseId}/bulk-curriculum`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sections }),
@@ -870,7 +871,7 @@ export default function CreateCourse() {
             const chosenDuration = mockDurations[Math.floor(Math.random() * mockDurations.length)];
             const mockUrl = "https://player.vimeo.com/video/76979871";
 
-            fetch(`/api/lessons/${lessonId}`, {
+            apiClient(`/api/lessons/${lessonId}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -902,7 +903,7 @@ export default function CreateCourse() {
     if (!courseId) return;
     setIsPublishing(true);
     try {
-      const res = await fetch(`/api/courses/${courseId}/publish`, {
+      const res = await apiClient(`/api/courses/${courseId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ price: parseFloat(price) }),

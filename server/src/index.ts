@@ -1,7 +1,8 @@
+import 'dotenv/config';
 import express from 'express';
+import { authenticateToken, requireAdmin, requireTrainer, requireStudent, requireAdminOrTrainer } from './middleware/auth';
 import fs from 'fs';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -12,7 +13,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config();
+// dotenv.config() is now handled at the top of the file
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
 
@@ -105,7 +106,7 @@ app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 // ==========================================
 // Image Upload Endpoint — GitHub Contents API
 // ==========================================
-app.post('/api/upload', async (req, res) => {
+app.post('/api/upload', authenticateToken, async (req, res) => {
   const { filename, base64Data } = req.body;
   if (!filename || !base64Data) {
     return res.status(400).json({ success: false, error: 'filename and base64Data are required' });
@@ -170,7 +171,7 @@ app.get('/api/health', async (req, res) => {
 // ==========================================
 
 // 1. Get all courses (including sections and lessons count)
-app.get('/api/courses', async (req, res) => {
+app.get('/api/courses', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const query = `
       SELECT c.*, 
@@ -190,7 +191,7 @@ app.get('/api/courses', async (req, res) => {
 });
 
 // 2. Get a single course with nested sections and lessons
-app.get('/api/courses/:id', async (req, res) => {
+app.get('/api/courses/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     // A. Fetch course metadata
@@ -238,7 +239,7 @@ app.get('/api/courses/:id', async (req, res) => {
 });
 
 // 3. Create a new course (Step 1)
-app.post('/api/courses', async (req, res) => {
+app.post('/api/courses', authenticateToken, requireAdmin, async (req, res) => {
   const { title, category, description, thumbnail_url } = req.body;
   try {
     const query = `
@@ -259,7 +260,7 @@ app.post('/api/courses', async (req, res) => {
 });
 
 // 4. Update a course (Step 1 / 4)
-app.put('/api/courses/:id', async (req, res) => {
+app.put('/api/courses/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { title, category, description, thumbnail_url, price, status } = req.body;
   try {
@@ -290,7 +291,7 @@ app.put('/api/courses/:id', async (req, res) => {
 // ==========================================
 
 // 5. Add a section to a course
-app.post('/api/courses/:id/sections', async (req, res) => {
+app.post('/api/courses/:id/sections', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { title, sort_order } = req.body;
   try {
@@ -307,7 +308,7 @@ app.post('/api/courses/:id/sections', async (req, res) => {
 });
 
 // 6. Update section (title, sort_order)
-app.put('/api/sections/:id', async (req, res) => {
+app.put('/api/sections/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { title, sort_order } = req.body;
   try {
@@ -329,7 +330,7 @@ app.put('/api/sections/:id', async (req, res) => {
 });
 
 // 7. Delete a section
-app.delete('/api/sections/:id', async (req, res) => {
+app.delete('/api/sections/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM sections WHERE id = $1', [id]);
@@ -344,7 +345,7 @@ app.delete('/api/sections/:id', async (req, res) => {
 // ==========================================
 
 // 8. Add a lesson to a section
-app.post('/api/sections/:sectionId/lessons', async (req, res) => {
+app.post('/api/sections/:sectionId/lessons', authenticateToken, requireAdmin, async (req, res) => {
   const { sectionId } = req.params;
   const { title, duration, sort_order, media_url } = req.body;
   try {
@@ -367,7 +368,7 @@ app.post('/api/sections/:sectionId/lessons', async (req, res) => {
 });
 
 // 9. Update a lesson (title, duration, sort_order, media_url)
-app.put('/api/lessons/:id', async (req, res) => {
+app.put('/api/lessons/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { title, duration, sort_order, media_url } = req.body;
   try {
@@ -391,7 +392,7 @@ app.put('/api/lessons/:id', async (req, res) => {
 });
 
 // 10. Delete a lesson
-app.delete('/api/lessons/:id', async (req, res) => {
+app.delete('/api/lessons/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM lessons WHERE id = $1', [id]);
@@ -402,7 +403,7 @@ app.delete('/api/lessons/:id', async (req, res) => {
 });
 
 // 11. Publish a course with its price
-app.post('/api/courses/:id/publish', async (req, res) => {
+app.post('/api/courses/:id/publish', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { price } = req.body;
   try {
@@ -425,7 +426,7 @@ app.post('/api/courses/:id/publish', async (req, res) => {
 });
 
 // 12. Parse and Import Curriculum (Mock/Helper for Step 2 upload)
-app.post('/api/courses/:id/import-curriculum', async (req, res) => {
+app.post('/api/courses/:id/import-curriculum', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { textData } = req.body; // Expecting raw text/csv rows
   try {
@@ -488,7 +489,7 @@ app.post('/api/courses/:id/import-curriculum', async (req, res) => {
 });
 
 // 13. Bulk Save Curriculum (Replaces all sections/lessons with a new structured list)
-app.post('/api/courses/:id/bulk-curriculum', async (req, res) => {
+app.post('/api/courses/:id/bulk-curriculum', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { sections } = req.body; // Expecting array of { title, sort_order, lessons: [...] }
 
@@ -540,7 +541,7 @@ app.post('/api/courses/:id/bulk-curriculum', async (req, res) => {
 });
 
 // Example route using Supabase Data API (if setup)
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authenticateToken, requireAdmin, async (req, res) => {
   if (!supabase) {
     return res.status(500).json({ error: 'Supabase client is not configured' });
   }
@@ -555,7 +556,7 @@ app.get('/api/users', async (req, res) => {
 // ==========================================
 
 // Submit new Application
-app.post('/api/applicants', async (req, res) => {
+app.post('/api/applicants', authenticateToken, requireAdmin, async (req, res) => {
   const { first_name, last_name, email, phone, program, academic_background, course_interest } = req.body;
   try {
     const query = `
@@ -579,7 +580,7 @@ app.post('/api/applicants', async (req, res) => {
 });
 
 // Get all pending applicants
-app.get('/api/applicants', async (req, res) => {
+app.get('/api/applicants', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM applicants WHERE status = 'pending' ORDER BY created_at DESC");
     res.json({ success: true, data: result.rows });
@@ -589,7 +590,7 @@ app.get('/api/applicants', async (req, res) => {
 });
 
 // Approve Applicant (Creates User & Student)
-app.post('/api/applicants/:id/approve', async (req, res) => {
+app.post('/api/applicants/:id/approve', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const client = await pool.connect();
 
@@ -639,7 +640,7 @@ app.post('/api/applicants/:id/approve', async (req, res) => {
 });
 
 // Reject Applicant
-app.post('/api/applicants/:id/reject', async (req, res) => {
+app.post('/api/applicants/:id/reject', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query("UPDATE applicants SET status = 'rejected' WHERE id = $1", [id]);
@@ -656,17 +657,24 @@ app.post('/api/applicants/:id/reject', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    // 1. Find user by email
-    const userRes = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (userRes.rows.length === 0) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
-    }
-    const user = userRes.rows[0];
+    let user = null;
 
-    // 2. Check password
-    const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    // Hardcoded Admin Fallback
+    if ((email === 'admin' || email === 'admin@enterprise.com') && password === 'admin123') {
+      user = { id: 0, email: 'admin@enterprise.com', role: 'admin', password_hash: '' };
+    } else {
+      // 1. Find user by email
+      const userRes = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+      if (userRes.rows.length === 0) {
+        return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      }
+      user = userRes.rows[0];
+
+      // 2. Check password
+      const isMatch = await bcrypt.compare(password, user.password_hash);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      }
     }
 
     // 3. Generate token
@@ -700,7 +708,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // GET student profile
-app.get('/api/students/profile', async (req, res) => {
+app.get('/api/students/profile', authenticateToken, requireStudent, async (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ success: false, error: 'userId is required' });
   try {
@@ -743,7 +751,7 @@ app.get('/api/students/profile', async (req, res) => {
 });
 
 // PUT update student profile
-app.put('/api/students/profile', async (req, res) => {
+app.put('/api/students/profile', authenticateToken, requireStudent, async (req, res) => {
   const {
     userId, firstName, lastName, whatsapp, cnic, university, semester,
     avatarUrl, linkedinUrl, githubUrl, portfolioUrl, resumeUrl
@@ -779,7 +787,7 @@ app.put('/api/students/profile', async (req, res) => {
 });
 
 // GET student tasks list
-app.get('/api/students/:studentId/tasks', async (req, res) => {
+app.get('/api/students/:studentId/tasks', authenticateToken, requireStudent, async (req, res) => {
   const { studentId } = req.params;
   try {
     const result = await pool.query(`
@@ -811,7 +819,7 @@ app.get('/api/students/:studentId/tasks', async (req, res) => {
 });
 
 // GET student dashboard stats
-app.get('/api/students/:studentId/dashboard-stats', async (req, res) => {
+app.get('/api/students/:studentId/dashboard-stats', authenticateToken, requireStudent, async (req, res) => {
   const { studentId } = req.params;
   try {
     const totalRes = await pool.query('SELECT COUNT(*) FROM task_assignments WHERE student_id = $1', [studentId]);
@@ -839,7 +847,7 @@ app.get('/api/students/:studentId/dashboard-stats', async (req, res) => {
 // ==========================================
 
 // Get all registered students
-app.get('/api/students', async (req, res) => {
+app.get('/api/students', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   try {
     const query = `
       SELECT s.*, u.email, COALESCE(a.phone, t.whatsapp) as phone 
@@ -859,7 +867,7 @@ app.get('/api/students', async (req, res) => {
 
 
 // POST submit a new training application (from public apply form)
-app.post('/api/training-applications', async (req, res) => {
+app.post('/api/training-applications', authenticateToken, requireAdmin, async (req, res) => {
   const {
     fullName,
     fatherName,
@@ -948,7 +956,7 @@ app.post('/api/training-applications', async (req, res) => {
 });
 
 // GET all pending training applications
-app.get('/api/training-applications', async (req, res) => {
+app.get('/api/training-applications', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       "SELECT * FROM training_applications WHERE status = 'pending' ORDER BY created_at DESC"
@@ -960,7 +968,7 @@ app.get('/api/training-applications', async (req, res) => {
 });
 
 // GET count of pending training applications (for badge)
-app.get('/api/training-applications/count', async (req, res) => {
+app.get('/api/training-applications/count', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       "SELECT COUNT(*) as count FROM training_applications WHERE status = 'pending'"
@@ -972,7 +980,7 @@ app.get('/api/training-applications/count', async (req, res) => {
 });
 
 // POST approve a training application + send acceptance email
-app.post('/api/training-applications/:id/approve', async (req, res) => {
+app.post('/api/training-applications/:id/approve', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { note } = req.body;
   const client = await pool.connect();
@@ -1021,16 +1029,53 @@ app.post('/api/training-applications/:id/approve', async (req, res) => {
 
     // 4. Check or Create Student Registry (Shift/Enroll Student)
     const studentRes = await client.query("SELECT id FROM students WHERE user_id = $1", [userId]);
+    let studentId;
     if (studentRes.rows.length === 0) {
       const enrollmentId = 'ENR-' + Date.now().toString().slice(-6) + '-' + app_data.id;
       const programName = app_data.tracks && app_data.tracks.length > 0 ? app_data.tracks[0] : 'General';
-      const nameParts = app_data.full_name.trim().split(/\s+/);
+      const nameParts = app_data.full_name.trim().split(/\\s+/);
       const firstName = nameParts[0] || 'Student';
       const lastName = nameParts.slice(1).join(' ') || 'User';
 
-      await client.query(
-        "INSERT INTO students (user_id, first_name, last_name, enrollment_id, program) VALUES ($1, $2, $3, $4, $5)",
+      const insertedStudent = await client.query(
+        "INSERT INTO students (user_id, first_name, last_name, enrollment_id, program) VALUES ($1, $2, $3, $4, $5) RETURNING id",
         [userId, firstName, lastName, enrollmentId, programName]
+      );
+      studentId = insertedStudent.rows[0].id;
+    } else {
+      studentId = studentRes.rows[0].id;
+    }
+
+    // 4.b Initialize Fees
+    const feeCheckRes = await client.query("SELECT id FROM fees WHERE student_id = $1", [studentId]);
+    if (feeCheckRes.rows.length === 0) {
+      let courseId = null;
+      let coursePrice = null;
+      if (programName) {
+        const courseRes = await client.query("SELECT id, price FROM courses WHERE title = $1 LIMIT 1", [programName]);
+        if (courseRes.rows.length > 0) {
+          courseId = courseRes.rows[0].id;
+          coursePrice = courseRes.rows[0].price;
+        }
+      }
+      
+      let totalFee = null;
+      let remainingAmount = null;
+      let status = '';
+
+      if (!programName || !courseId) {
+        status = 'course_not_assigned';
+      } else if (coursePrice === null || coursePrice === undefined) {
+        status = 'fee_not_configured';
+      } else {
+        totalFee = coursePrice;
+        remainingAmount = coursePrice;
+        status = 'unpaid';
+      }
+
+      await client.query(
+        "INSERT INTO fees (student_id, course_id, total_fee, paid_amount, remaining_amount, status) VALUES ($1, $2, $3, 0, $4, $5)",
+        [studentId, courseId, totalFee, remainingAmount, status]
       );
     }
 
@@ -1145,7 +1190,7 @@ app.post('/api/training-applications/:id/approve', async (req, res) => {
 });
 
 // POST reject a training application + send rejection email
-app.post('/api/training-applications/:id/reject', async (req, res) => {
+app.post('/api/training-applications/:id/reject', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { note } = req.body;
 
@@ -1235,7 +1280,7 @@ app.post('/api/training-applications/:id/reject', async (req, res) => {
 // ==========================================
 
 // GET all tasks (with optional course filter)
-app.get('/api/tasks', async (req, res) => {
+app.get('/api/tasks', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { course } = req.query;
   try {
     let query = `SELECT * FROM tasks ORDER BY created_at DESC`;
@@ -1252,7 +1297,7 @@ app.get('/api/tasks', async (req, res) => {
 });
 
 // POST create a new task
-app.post('/api/tasks', async (req, res) => {
+app.post('/api/tasks', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { title, description, courseId, courseLabel, points, dueDate, referenceLinks, assignedStudentIds } = req.body;
   if (!title || !courseId) return res.status(400).json({ success: false, error: 'Title and courseId are required.' });
   const client = await pool.connect();
@@ -1288,7 +1333,7 @@ app.post('/api/tasks', async (req, res) => {
 // ── otherwise Express captures 'assignments' as :id and returns 404.
 
 // GET task assignments for a course
-app.get('/api/tasks/assignments/by-course/:courseId', async (req, res) => {
+app.get('/api/tasks/assignments/by-course/:courseId', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { courseId } = req.params;
   try {
     const result = await pool.query(`
@@ -1326,7 +1371,7 @@ app.get('/api/tasks/assignments/by-course/:courseId', async (req, res) => {
 });
 
 // POST submit task proof (student submission)
-app.post('/api/tasks/assignments/:assignmentId/submit', async (req, res) => {
+app.post('/api/tasks/assignments/:assignmentId/submit', authenticateToken, requireStudent, async (req, res) => {
   const { assignmentId } = req.params;
   const { description, githubUrl, liveUrl, additionalLinks, imageUrls, videoUrl, notes } = req.body;
   const client = await pool.connect();
@@ -1361,7 +1406,7 @@ app.post('/api/tasks/assignments/:assignmentId/submit', async (req, res) => {
 });
 
 // POST grade a task assignment
-app.post('/api/tasks/assignments/:assignmentId/grade', async (req, res) => {
+app.post('/api/tasks/assignments/:assignmentId/grade', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { assignmentId } = req.params;
   const { score, feedback } = req.body;
   const scoreNum = Number(score);
@@ -1380,7 +1425,7 @@ app.post('/api/tasks/assignments/:assignmentId/grade', async (req, res) => {
 });
 
 // GET single task assignment with submission details
-app.get('/api/tasks/assignments/:assignmentId', async (req, res) => {
+app.get('/api/tasks/assignments/:assignmentId', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { assignmentId } = req.params;
   try {
     const result = await pool.query(`
@@ -1440,7 +1485,7 @@ app.get('/api/tasks/assignments/:assignmentId', async (req, res) => {
   }
 });
 // GET all submitted tasks (for trainer review)
-app.get('/api/tasks/submitted', async (req, res) => {
+app.get('/api/tasks/submitted', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -1482,7 +1527,7 @@ app.get('/api/tasks/submitted', async (req, res) => {
 });
 
 // GET single task by id — MUST be LAST among /api/tasks/* routes
-app.get('/api/tasks/:id', async (req, res) => {
+app.get('/api/tasks/:id', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
@@ -1499,7 +1544,7 @@ app.get('/api/tasks/:id', async (req, res) => {
 // ==========================================
 
 // GET all trainers
-app.get('/api/trainers', async (req, res) => {
+app.get('/api/trainers', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT tr.*, u.email, u.role
@@ -1514,7 +1559,7 @@ app.get('/api/trainers', async (req, res) => {
 });
 
 // POST create trainer (Admin)
-app.post('/api/trainers', async (req, res) => {
+app.post('/api/trainers', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { firstName, lastName, email, phone, department, assignedCourses, password } = req.body;
   if (!firstName || !lastName || !email) {
     return res.status(400).json({ success: false, error: 'firstName, lastName, email are required.' });
@@ -1569,7 +1614,7 @@ app.post('/api/trainers', async (req, res) => {
 });
 
 // GET trainer profile by userId
-app.get('/api/trainers/profile', async (req, res) => {
+app.get('/api/trainers/profile', authenticateToken, requireTrainer, async (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
   try {
@@ -1585,7 +1630,7 @@ app.get('/api/trainers/profile', async (req, res) => {
 });
 
 // PUT update trainer profile (self)
-app.put('/api/trainers/profile', async (req, res) => {
+app.put('/api/trainers/profile', authenticateToken, requireTrainer, async (req, res) => {
   const { userId, phone, avatarUrl } = req.body;
   if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
   try {
@@ -1627,7 +1672,7 @@ app.delete('/api/trainers/:id', async (req, res) => {
 });
 
 // GET trainer stats dashboard
-app.get('/api/trainers/dashboard-stats', async (req, res) => {
+app.get('/api/trainers/dashboard-stats', authenticateToken, requireTrainer, async (req, res) => {
   const { userId } = req.query;
   try {
     const totalStudents = await pool.query('SELECT COUNT(*) FROM students');
@@ -1660,7 +1705,7 @@ app.get('/api/trainers/dashboard-stats', async (req, res) => {
 });
 
 // POST publish/grade task + send notification + email
-app.post('/api/tasks/assignments/:assignmentId/publish', async (req, res) => {
+app.post('/api/tasks/assignments/:assignmentId/publish', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { assignmentId } = req.params;
   const { score, feedback, grade } = req.body;
   const scoreNum = Number(score);
@@ -1724,7 +1769,7 @@ app.post('/api/tasks/assignments/:assignmentId/publish', async (req, res) => {
 });
 
 // POST assign task with email notification
-app.post('/api/tasks/assign-with-email', async (req, res) => {
+app.post('/api/tasks/assign-with-email', authenticateToken, requireAdmin, async (req, res) => {
   const { title, description, instructions, courseId, courseLabel, points, dueDate, referenceLinks, assignedStudentIds, trainerName } = req.body;
   if (!title || !courseId || !assignedStudentIds?.length) {
     return res.status(400).json({ success: false, error: 'title, courseId, and assignedStudentIds are required.' });
@@ -1799,7 +1844,7 @@ app.post('/api/tasks/assign-with-email', async (req, res) => {
 // ==========================================
 
 // POST mark attendance (Trainer)
-app.post('/api/attendance', async (req, res) => {
+app.post('/api/attendance', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { records, date } = req.body;
   // records = [{ studentId, status, notes }]
   if (!records || !Array.isArray(records) || !date) {
@@ -1840,7 +1885,7 @@ app.post('/api/attendance', async (req, res) => {
 });
 
 // GET student attendance
-app.get('/api/attendance/student/:studentId', async (req, res) => {
+app.get('/api/attendance/student/:studentId', authenticateToken, requireStudent, async (req, res) => {
   const { studentId } = req.params;
   const { month, year } = req.query;
   try {
@@ -1870,7 +1915,7 @@ app.get('/api/attendance/student/:studentId', async (req, res) => {
 });
 
 // GET all students attendance for a date (Trainer view)
-app.get('/api/attendance/date/:date', async (req, res) => {
+app.get('/api/attendance/date/:date', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { date } = req.params;
   try {
     const result = await pool.query(`
@@ -1887,7 +1932,7 @@ app.get('/api/attendance/date/:date', async (req, res) => {
 });
 
 // GET attendance summary for admin report
-app.get('/api/attendance/summary', async (req, res) => {
+app.get('/api/attendance/summary', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -1917,7 +1962,7 @@ app.get('/api/attendance/summary', async (req, res) => {
 // ==========================================
 
 // POST create announcement
-app.post('/api/announcements', async (req, res) => {
+app.post('/api/announcements', authenticateToken, requireAdmin, async (req, res) => {
   const { title, content, authorId, authorName, role, target, sendEmail: doSendEmail } = req.body;
   if (!title || !content) return res.status(400).json({ success: false, error: 'title and content required.' });
   const client = await pool.connect();
@@ -1966,7 +2011,7 @@ app.post('/api/announcements', async (req, res) => {
 });
 
 // GET all announcements (paginated)
-app.get('/api/announcements', async (req, res) => {
+app.get('/api/announcements', authenticateToken, requireAdmin, async (req, res) => {
   const { limit = 20, offset = 0 } = req.query;
   try {
     const result = await pool.query(
@@ -1980,7 +2025,7 @@ app.get('/api/announcements', async (req, res) => {
 });
 
 // PUT update announcement
-app.put('/api/announcements/:id', async (req, res) => {
+app.put('/api/announcements/:id', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { id } = req.params;
   const { title, content } = req.body;
   if (!title || !content) return res.status(400).json({ success: false, error: 'title and content are required.' });
@@ -1997,7 +2042,7 @@ app.put('/api/announcements/:id', async (req, res) => {
 });
 
 // DELETE announcement
-app.delete('/api/announcements/:id', async (req, res) => {
+app.delete('/api/announcements/:id', authenticateToken, requireAdminOrTrainer, async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM announcements WHERE id = $1', [id]);
@@ -2054,7 +2099,7 @@ app.put('/api/notifications/read-all', async (req, res) => {
 // ADMIN DASHBOARD STATS
 // ==========================================
 
-app.get('/api/dashboard/admin-stats', async (req, res) => {
+app.get('/api/dashboard/admin-stats', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const [
       studentsRes,
@@ -2119,7 +2164,7 @@ app.get('/api/dashboard/admin-stats', async (req, res) => {
 // STUDENT PERFORMANCE ROUTES
 // ==========================================
 
-app.get('/api/students/:studentId/performance', async (req, res) => {
+app.get('/api/students/:studentId/performance', authenticateToken, requireStudent, async (req, res) => {
   const { studentId } = req.params;
   try {
     const result = await pool.query(`
@@ -2192,7 +2237,7 @@ app.put('/api/auth/change-password', async (req, res) => {
 });
 
 // GET all students with their task/performance summary (admin)
-app.get('/api/students/full-report', async (req, res) => {
+app.get('/api/students/full-report', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
@@ -2211,6 +2256,247 @@ app.get('/api/students/full-report', async (req, res) => {
       ORDER BY s.created_at DESC
     `);
     res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// FINANCE & FEE MANAGEMENT API ROUTES
+// ==========================================
+
+// 1. Get finance stats for Admin Dashboard
+app.get('/api/finance/stats', authenticateToken, requireAdmin, async (req, res) => {
+
+  try {
+    const totalExpected = await pool.query('SELECT SUM(total_fee) as total FROM fees');
+    const totalCollected = await pool.query('SELECT SUM(paid_amount) as total FROM fees');
+    const outstanding = await pool.query('SELECT SUM(remaining_amount) as total FROM fees');
+    const pendingStudents = await pool.query("SELECT COUNT(*) FROM fees WHERE status IN ('unpaid', 'partial')");
+
+    res.json({
+      success: true,
+      data: {
+        totalExpected: parseFloat(totalExpected.rows[0].total) || 0,
+        totalCollected: parseFloat(totalCollected.rows[0].total) || 0,
+        outstandingFees: parseFloat(outstanding.rows[0].total) || 0,
+        pendingStudents: parseInt(pendingStudents.rows[0].count) || 0,
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Get all students fee list
+app.get('/api/finance/fees', authenticateToken, requireAdmin, async (req, res) => {
+
+  try {
+    const result = await pool.query(`
+      SELECT 
+        s.id as student_id,
+        s.first_name,
+        s.last_name,
+        s.enrollment_id,
+        s.program as course,
+        u.email,
+        s.whatsapp as phone,
+        COALESCE(f.status, 'unpaid') as fee_status,
+        COALESCE(f.total_fee, 0) as total_fee,
+        COALESCE(f.paid_amount, 0) as paid_amount,
+        COALESCE(f.remaining_amount, 0) as remaining_amount,
+        (SELECT payment_date FROM fee_payments fp WHERE fp.fee_id = f.id ORDER BY payment_date DESC LIMIT 1) as last_payment_date
+      FROM students s
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN fees f ON f.student_id = s.id
+      ORDER BY s.created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3. Get single student fee details & history
+app.get('/api/finance/fees/:studentId', authenticateToken, requireAdmin, async (req, res) => {
+
+  const { studentId } = req.params;
+  try {
+    const feeResult = await pool.query(`
+      SELECT f.*, s.first_name, s.last_name, s.enrollment_id, s.program as course
+      FROM fees f
+      JOIN students s ON s.id = f.student_id
+      WHERE f.student_id = $1
+      LIMIT 1
+    `, [studentId]);
+    
+    const feeData = feeResult.rows[0];
+    let payments: any[] = [];
+    
+    if (feeData) {
+      const paymentsResult = await pool.query(`
+        SELECT * FROM fee_payments
+        WHERE fee_id = $1
+        ORDER BY payment_date DESC
+      `, [feeData.id]);
+      payments = paymentsResult.rows;
+    } else {
+      return res.json({
+        success: true,
+        data: { fee: null, payments: [] }
+      });
+    }
+
+    res.json({ success: true, data: { fee: feeData, payments } });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 4. Record a payment
+app.post('/api/finance/fees/:studentId/pay', authenticateToken, requireAdmin, async (req, res) => {
+
+  const { studentId } = req.params;
+  const { amount, paymentMethod, transactionReference, remarks, paymentDate, recordedBy, totalFee } = req.body;
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    let feeResult = await client.query('SELECT * FROM fees WHERE student_id = $1 FOR UPDATE', [studentId]);
+    let fee = feeResult.rows[0];
+
+    if (!fee) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Fee record not found for this student.' });
+    }
+
+    if (fee.status === 'fee_not_configured' || fee.status === 'course_not_assigned') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, error: 'Cannot record payment. Total fee is not configured or course is not assigned.' });
+    }
+
+    const payAmount = parseFloat(amount);
+    if (isNaN(payAmount) || payAmount <= 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, error: 'Invalid amount. Amount must be greater than zero.' });
+    }
+
+    const currentRemaining = parseFloat(fee.remaining_amount);
+    if (payAmount > currentRemaining) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, error: `Payment amount (Rs. ${payAmount}) exceeds the remaining balance (Rs. ${currentRemaining}).` });
+    }
+
+    const insertPayment = await client.query(`
+      INSERT INTO fee_payments (fee_id, student_id, amount, payment_method, transaction_reference, remarks, payment_date, recorded_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id
+    `, [fee.id, studentId, payAmount, paymentMethod, transactionReference, remarks, paymentDate || new Date(), recordedBy || null]);
+    
+    const paymentId = insertPayment.rows[0].id;
+    const year = new Date().getFullYear();
+    const generatedReceipt = `REC-${year}-${String(paymentId).padStart(6, '0')}`;
+
+    await client.query(`
+      UPDATE fee_payments SET receipt_number = $1 WHERE id = $2
+    `, [generatedReceipt, paymentId]);
+
+    const newPaid = parseFloat(fee.paid_amount) + payAmount;
+    let newRemaining = parseFloat(fee.total_fee) - newPaid;
+    if (newRemaining < 0) newRemaining = 0;
+
+    let status = 'partial';
+    if (newRemaining === 0) status = 'paid';
+
+    const updatedFeeResult = await client.query(`
+      UPDATE fees
+      SET paid_amount = $1, remaining_amount = $2, status = $3, updated_at = NOW()
+      WHERE id = $4
+      RETURNING *
+    `, [newPaid, newRemaining, status, fee.id]);
+
+    await client.query('COMMIT');
+    res.json({ success: true, data: updatedFeeResult.rows[0] });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 4.b Update Total Fee
+app.put('/api/finance/fees/:studentId/total', authenticateToken, requireAdmin, async (req, res) => {
+
+  const { studentId } = req.params;
+  const { totalFee } = req.body;
+
+  const newTotal = parseFloat(totalFee);
+  if (isNaN(newTotal) || newTotal < 0) {
+    return res.status(400).json({ success: false, error: 'Invalid total fee amount.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    let feeResult = await client.query('SELECT * FROM fees WHERE student_id = $1 FOR UPDATE', [studentId]);
+    let fee = feeResult.rows[0];
+
+    if (!fee) {
+      const insertFee = await client.query(`
+        INSERT INTO fees (student_id, total_fee, paid_amount, remaining_amount, status)
+        VALUES ($1, $2, 0, $2, 'unpaid')
+        RETURNING *
+      `, [studentId, newTotal]);
+      fee = insertFee.rows[0];
+    } else {
+      const paid = parseFloat(fee.paid_amount);
+      let newRemaining = newTotal - paid;
+      if (newRemaining < 0) newRemaining = 0;
+      
+      let status = 'partial';
+      if (newRemaining === 0) status = 'paid';
+      if (paid === 0 && newTotal > 0) status = 'unpaid';
+
+      const updateFee = await client.query(`
+        UPDATE fees
+        SET total_fee = $1, remaining_amount = $2, status = $3, updated_at = NOW()
+        WHERE id = $4
+        RETURNING *
+      `, [newTotal, newRemaining, status, fee.id]);
+      fee = updateFee.rows[0];
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, data: fee });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 5. Get student own fees
+app.get('/api/student/:studentId/fees', authenticateToken, requireStudent, async (req, res) => {
+  const { studentId } = req.params;
+  
+  if (!req.user || req.user.id !== parseInt(studentId)) {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Can only view your own fees' });
+  }
+  
+  try {
+    const feeResult = await pool.query('SELECT * FROM fees WHERE student_id = $1 LIMIT 1', [studentId]);
+    const feeData = feeResult.rows[0];
+    let payments: any[] = [];
+    if (feeData) {
+      const paymentsResult = await pool.query('SELECT * FROM fee_payments WHERE fee_id = $1 ORDER BY payment_date DESC', [feeData.id]);
+      payments = paymentsResult.rows;
+    }
+    res.json({ success: true, data: { fee: feeData || null, payments } });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2398,5 +2684,47 @@ app.listen(PORT, async () => {
     console.log('✅ "notifications" table created/verified successfully!');
   } catch (dbErr: any) {
     console.error('❌ Failed to verify/create "notifications" table:', dbErr.message);
+  }
+
+  // Auto-create fees table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fees (
+        id SERIAL PRIMARY KEY,
+        student_id INT REFERENCES students(id) ON DELETE CASCADE,
+        course_id INT REFERENCES courses(id) ON DELETE SET NULL,
+        total_fee NUMERIC(10, 2) NOT NULL DEFAULT 0,
+        paid_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+        remaining_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'unpaid',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('✅ "fees" table created/verified successfully!');
+  } catch (dbErr: any) {
+    console.error('❌ Failed to verify/create "fees" table:', dbErr.message);
+  }
+
+  // Auto-create fee_payments table
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fee_payments (
+        id SERIAL PRIMARY KEY,
+        fee_id INT REFERENCES fees(id) ON DELETE CASCADE,
+        student_id INT REFERENCES students(id) ON DELETE CASCADE,
+        amount NUMERIC(10, 2) NOT NULL,
+        payment_method VARCHAR(50),
+        transaction_reference VARCHAR(100),
+        receipt_number VARCHAR(100),
+        remarks TEXT,
+        payment_date TIMESTAMPTZ DEFAULT NOW(),
+        recorded_by INT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    console.log('✅ "fee_payments" table created/verified successfully!');
+  } catch (dbErr: any) {
+    console.error('❌ Failed to verify/create "fee_payments" table:', dbErr.message);
   }
 });

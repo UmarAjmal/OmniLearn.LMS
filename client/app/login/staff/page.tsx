@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 export default function StaffLoginPage() {
@@ -39,20 +40,11 @@ export default function StaffLoginPage() {
       return;
     }
 
-    // Offline Admin Fallback
-    const isOfflineAdmin =
-      (email === "admin" || email === "admin@enterprise.com") && password === "admin123";
-    if (isOfflineAdmin) {
-      localStorage.setItem("lms_auth", "true");
-      localStorage.setItem("lms_user_role", "admin");
-      toast.success("Welcome back, Senior Administrator!");
-      router.push("/dashboard");
-      setIsSubmitting(false);
-      return;
-    }
+    // Removed frontend offline admin fallback.
+    // Admin login must now go through the backend to receive a secure JWT.
 
     try {
-      const res = await fetch(`/api/auth/login`, {
+      const res = await apiClient(`/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -62,6 +54,7 @@ export default function StaffLoginPage() {
         toast.error(json.error || "Invalid username or password.");
       } else {
         localStorage.setItem("lms_auth", "true");
+        if (json.token) localStorage.setItem("lms_token", json.token);
         localStorage.setItem("lms_user_role", json.user.role);
         localStorage.setItem("lms_user_id", String(json.user.id));
 

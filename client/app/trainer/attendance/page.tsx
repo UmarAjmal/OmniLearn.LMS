@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface Student {
@@ -35,7 +36,7 @@ export default function TrainerAttendancePage() {
   const fetchStudents = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/students`);
+      const res = await apiClient(`/api/students`);
       const json = await res.json();
       if (json.success) {
         setStudents(json.data || []);
@@ -53,7 +54,7 @@ export default function TrainerAttendancePage() {
 
   const fetchExistingAttendance = useCallback(async (date: string) => {
     try {
-      const res = await fetch(`/api/attendance/date/${date}`);
+      const res = await apiClient(`/api/attendance/date/${date}`);
       const json = await res.json();
       if (json.success && json.data.length > 0) {
         const map: Record<number, AttendanceStatus> = {};
@@ -90,7 +91,7 @@ export default function TrainerAttendancePage() {
         studentId: s.id,
         status: attendance[s.id] || "present",
       }));
-      const res = await fetch(`/api/attendance`, {
+      const res = await apiClient(`/api/attendance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ records, date: selectedDate }),

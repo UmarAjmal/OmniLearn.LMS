@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 // All fetch calls use relative /api/* paths → served by Next.js route handlers
 // which proxy to the Express backend. This prevents the HTML-404 SyntaxError.
@@ -46,7 +47,7 @@ export default function AdminTrainersPage() {
   const fetchTrainers = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/trainers`);
+      const res = await apiClient(`/api/trainers`);
       const json = await res.json();
       if (json.success) setTrainers(json.data || []);
       else toast.error(json.error || "Failed to load trainers.");
@@ -76,7 +77,7 @@ export default function AdminTrainersPage() {
     }
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/trainers`, {
+      const res = await apiClient(`/api/trainers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ firstName, lastName, email, phone, department, assignedCourses: selectedCourses }),
@@ -100,7 +101,7 @@ export default function AdminTrainersPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this trainer? This cannot be undone.")) return;
     try {
-      const res = await fetch(`/api/trainers/${id}`, { method: "DELETE" });
+      const res = await apiClient(`/api/trainers/${id}`, { method: "DELETE" });
       const json = await res.json();
       if (json.success) { toast.success("Trainer deleted."); fetchTrainers(); }
       else toast.error(json.error || "Failed to delete.");

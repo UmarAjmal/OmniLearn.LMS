@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import DragDropUploader from "@/components/DragDropUploader";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface TaskAssignment {
@@ -50,7 +51,7 @@ export default function SubmitTaskPage() {
   const fetchTasks = useCallback(async (id: number) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/students/${id}/tasks`);
+      const res = await apiClient(`/api/students/${id}/tasks`);
       const json = await res.json();
       if (json.success) {
         // Only keep pending ones for submission
@@ -70,6 +71,7 @@ export default function SubmitTaskPage() {
     const userId = localStorage.getItem("lms_user_id");
 
     const handleLogout = () => {
+      localStorage.removeItem("lms_token");
       localStorage.removeItem("lms_auth");
       localStorage.removeItem("lms_user_role");
       localStorage.removeItem("lms_user_id");
@@ -79,7 +81,7 @@ export default function SubmitTaskPage() {
 
     if (!infoStr || infoStr === "undefined" || infoStr === "null") {
       if (userId) {
-        fetch(`/api/students/profile?userId=${userId}`)
+        apiClient(`/api/students/profile?userId=${userId}`)
           .then(r => r.json())
           .then(json => {
             if (json.success && json.data) {
@@ -184,7 +186,7 @@ export default function SubmitTaskPage() {
     }
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/tasks/assignments/${selectedAssignmentId}/submit`, {
+      const res = await apiClient(`/api/tasks/assignments/${selectedAssignmentId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

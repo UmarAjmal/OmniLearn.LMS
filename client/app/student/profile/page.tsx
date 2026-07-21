@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import DragDropUploader from "@/components/DragDropUploader";
+import { apiClient } from "@/lib/apiClient";
 
 
 const TRACKS = [
@@ -49,7 +50,7 @@ export default function StudentProfilePage() {
   const fetchProfile = useCallback(async (uid: string) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/students/profile?userId=${uid}`);
+      const res = await apiClient(`/api/students/profile?userId=${uid}`);
       const json = await res.json();
       if (json.success && json.data) {
         const d = json.data;
@@ -81,6 +82,7 @@ export default function StudentProfilePage() {
   useEffect(() => {
     const uid = localStorage.getItem("lms_user_id");
     const handleLogout = () => {
+      localStorage.removeItem("lms_token");
       localStorage.removeItem("lms_auth");
       localStorage.removeItem("lms_user_role");
       localStorage.removeItem("lms_user_id");
@@ -107,7 +109,7 @@ export default function StudentProfilePage() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/students/profile`, {
+      const res = await apiClient(`/api/students/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -158,7 +160,7 @@ export default function StudentProfilePage() {
 
     setIsChangingPassword(true);
     try {
-      const res = await fetch(`/api/auth/change-password`, {
+      const res = await apiClient(`/api/auth/change-password`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

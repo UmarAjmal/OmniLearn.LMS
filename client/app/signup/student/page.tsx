@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 // ── All logic below is unchanged from original. Only the UI wrapper was updated. ──
@@ -33,7 +34,7 @@ export default function StudentSignupPage() {
         course_interest: formData.get("interest"),
       };
 
-      const response = await fetch(`/api/applicants`, {
+      const response = await apiClient(`/api/applicants`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),

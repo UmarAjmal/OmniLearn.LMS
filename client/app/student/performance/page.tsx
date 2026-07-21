@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface PerformanceRecord {
@@ -42,7 +43,7 @@ export default function StudentPerformancePage() {
   const fetchPerformance = useCallback(async (studentId: number) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/students/${studentId}/performance`);
+      const res = await apiClient(`/api/students/${studentId}/performance`);
       const json = await res.json();
       if (json.success) {
         setRecords(json.data || []);

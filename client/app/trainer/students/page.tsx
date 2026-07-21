@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface Student {
@@ -37,14 +38,14 @@ export default function TrainerStudentsPage() {
   const fetchStudents = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/students/full-report`);
+      const res = await apiClient(`/api/students/full-report`);
       const json = await res.json();
       if (json.success) {
         setStudents(json.data || []);
         setFiltered(json.data || []);
       } else {
         // Fallback to basic list
-        const fallback = await fetch(`/api/students`);
+        const fallback = await apiClient(`/api/students`);
         const fj = await fallback.json();
         if (fj.success) { setStudents(fj.data || []); setFiltered(fj.data || []); }
       }

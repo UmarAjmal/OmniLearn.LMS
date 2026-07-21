@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface Announcement {
@@ -22,7 +23,7 @@ export default function StudentAnnouncementsPage() {
   const fetchAnnouncements = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/announcements`);
+      const res = await apiClient(`/api/announcements`);
       const json = await res.json();
       if (json.success) setAnnouncements(json.data || []);
     } catch { toast.error("Failed to load announcements."); }

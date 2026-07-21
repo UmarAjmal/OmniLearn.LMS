@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 const COURSES = [
@@ -69,7 +70,7 @@ export default function CompletedTasksPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/tasks/assignments/by-course/${courseId}`);
+      const res = await apiClient(`/api/tasks/assignments/by-course/${courseId}`);
       const json = await res.json();
       if (!res.ok || !json.success) {
         setError(json.error || "Failed to load task assignments.");

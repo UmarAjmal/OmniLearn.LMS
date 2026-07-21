@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface Submission {
@@ -74,7 +75,7 @@ export default function SubmittedTasksPage() {
     }
     setIsGrading(true);
     try {
-      const res = await fetch(`/api/tasks/assignments/${activeReview.assignment_id}/publish`, {
+      const res = await apiClient(`/api/tasks/assignments/${activeReview.assignment_id}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -101,7 +102,7 @@ export default function SubmittedTasksPage() {
   const fetchSubmissions = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/tasks/submitted`);
+      const res = await apiClient(`/api/tasks/submitted`);
       const json = await res.json();
       if (json.success) {
         setSubmissions(json.data || []);

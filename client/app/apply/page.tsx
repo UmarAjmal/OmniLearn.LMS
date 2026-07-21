@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiClient } from "@/lib/apiClient";
 
 
 const TRACKS = [
@@ -208,7 +209,7 @@ export default function ApplyPage() {
     setSubmitError(null);
 
     try {
-      const response = await fetch(`/api/training-applications`, {
+      const response = await apiClient(`/api/training-applications`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface AttendanceRecord {
@@ -43,7 +44,7 @@ export default function StudentAttendancePage() {
   const fetchAttendance = useCallback(async (id: number, month: number, year: number) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/attendance/student/${id}?month=${month}&year=${year}`);
+      const res = await apiClient(`/api/attendance/student/${id}?month=${month}&year=${year}`);
       const json = await res.json();
       if (json.success) {
         setRecords(json.data || []);

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiClient } from "@/lib/apiClient";
 
 
 interface Course {
@@ -36,7 +37,7 @@ export default function CoursesPage() {
   useEffect(() => {
     const fetchCourses = async () => {
       try {
-        const response = await fetch(`/api/courses`);
+        const response = await apiClient(`/api/courses`);
         const json = await response.json();
         if (json.success) {
           const coursesData = json.data as Course[];

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { apiClient } from "@/lib/apiClient";
 
 // Uses relative /api/* paths → Next.js route handlers proxy to Express backend
 
@@ -16,6 +17,13 @@ interface AdminStats {
   todayAttendance: number;
   admissionsWeekly: { day: string; count: string }[];
   taskCompletion: { pending: string; completed: string; marked: string };
+}
+
+interface FinanceStats {
+  totalExpected: number;
+  totalCollected: number;
+  outstandingFees: number;
+  pendingStudents: number;
 }
 
 function StatCard({ icon, label, value, sub, accent, href }: { icon: string; label: string; value: string | number; sub?: string; accent?: string; href?: string }) {
@@ -116,15 +124,21 @@ function DonutChart({ pending, completed, marked }: { pending: number; completed
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [financeStats, setFinanceStats] = useState<FinanceStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchStats = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/dashboard/admin-stats`);
+      const res = await apiClient(`/api/dashboard/admin-stats`);
       const json = await res.json();
       if (json.success) setStats(json.data);
       else console.error("admin-stats error:", json.error);
+
+      const fres = await apiClient(`/api/finance/stats`);
+      const fjson = await fres.json();
+      if (fjson.success) setFinanceStats(fjson.data);
+      else console.error("finance-stats error:", fjson.error);
     } catch (err) {
       console.error("Failed to load admin stats:", err);
     } finally {
@@ -170,6 +184,20 @@ export default function AdminDashboardPage() {
         <StatCard icon="task_alt" label="Submissions" value={stats?.submissions ?? 0} accent="bg-emerald-500/15" />
         <StatCard icon="event_available" label="Present Today" value={stats?.todayAttendance ?? 0} sub="Students present" />
         <StatCard icon="verified" label="System Status" value="Online" sub="All services running" accent="bg-emerald-500/15" />
+      </div>
+
+      {/* Finance Stats */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-white">Finance Overview</h2>
+          <Link href="/dashboard/fees" className="text-[#F6B32B] text-xs font-semibold hover:underline">Manage Fees →</Link>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard icon="account_balance" label="Expected Fees" value={`Rs. ${financeStats?.totalExpected ?? 0}`} accent="bg-blue-500/15" />
+          <StatCard icon="payments" label="Total Collected" value={`Rs. ${financeStats?.totalCollected ?? 0}`} accent="bg-emerald-500/15" />
+          <StatCard icon="money_off" label="Outstanding" value={`Rs. ${financeStats?.outstandingFees ?? 0}`} accent="bg-red-500/15" />
+          <StatCard icon="group_remove" label="Pending Students" value={financeStats?.pendingStudents ?? 0} accent="bg-orange-500/15" />
+        </div>
       </div>
 
       {/* Charts row */}

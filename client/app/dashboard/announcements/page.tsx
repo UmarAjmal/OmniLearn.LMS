@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 // Uses relative /api/* paths → Next.js route handlers proxy to Express backend
 
@@ -28,7 +29,7 @@ export default function AdminAnnouncementsPage() {
   const fetchAnnouncements = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/announcements`);
+      const res = await apiClient(`/api/announcements`);
       const json = await res.json();
       if (json.success) setAnnouncements(json.data || []);
       else toast.error(json.error || "Failed to load announcements.");
@@ -50,7 +51,7 @@ export default function AdminAnnouncementsPage() {
     setIsPosting(true);
     try {
       const uid = localStorage.getItem("lms_user_id");
-      const res = await fetch(`/api/announcements`, {
+      const res = await apiClient(`/api/announcements`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, content, authorId: uid, authorName: "Admin", role: "admin", target: "all", sendEmail }),
@@ -71,7 +72,7 @@ export default function AdminAnnouncementsPage() {
   const handleDelete = async (id: number) => {
     if (!confirm("Delete this announcement?")) return;
     try {
-      await fetch(`/api/announcements/${id}`, { method: "DELETE" });
+      await apiClient(`/api/announcements/${id}`, { method: "DELETE" });
       toast.success("Deleted."); fetchAnnouncements();
     } catch (err) {
       console.error("handleDelete error:", err);

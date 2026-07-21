@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 const COURSES = [
@@ -57,7 +58,7 @@ export default function NewTaskPage() {
     const fetchStudents = async () => {
       setIsLoadingStudents(true);
       try {
-        const res = await fetch(`/api/students`);
+        const res = await apiClient(`/api/students`);
         const json = await res.json();
         if (json.success) {
           setStudents(json.data);
@@ -168,7 +169,7 @@ export default function NewTaskPage() {
     const course = COURSES.find(c => c.id === selectedCourse);
     setIsSubmittingTask(true);
     try {
-      const res = await fetch(`/api/tasks`, {
+      const res = await apiClient(`/api/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

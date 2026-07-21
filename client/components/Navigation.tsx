@@ -241,6 +241,7 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
 
   const handleLogout = (e: React.MouseEvent) => {
     e.preventDefault();
+    localStorage.removeItem("lms_token");
     localStorage.removeItem("lms_auth");
     localStorage.removeItem("lms_user_role");
     localStorage.removeItem("lms_user_id");
@@ -285,6 +286,9 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
           <NavSection label="Records" />
           <NavLink href="/student/attendance" icon="event_available" label="Attendance" active={pathname === "/student/attendance"} onClick={closeMobile} />
           <NavLink href="/student/announcements" icon="campaign" label="Announcements" active={pathname === "/student/announcements"} onClick={closeMobile} />
+          <NavSection label="Finance" />
+          <NavLink href="/student/fees" icon="payments" label="My Fees" active={pathname === "/student/fees"} onClick={closeMobile} />
+          
           <NavSection label="Account" />
           <NavLink href="/student/profile" icon="person" label="My Profile" active={pathname === "/student/profile"} onClick={closeMobile} />
         </nav>
@@ -322,6 +326,8 @@ export default function Navigation({ children }: { children: React.ReactNode }) 
         <NavLink href="/courses" icon="menu_book" label="Courses" active={pathname.startsWith("/courses")} onClick={closeMobile} />
         <NavLink href="/tasks/new" icon="add_task" label="Assign Task" active={pathname === "/tasks/new"} onClick={closeMobile} />
         <NavLink href="/tasks/completed" icon="task_alt" label="Submissions" active={pathname === "/tasks/completed"} onClick={closeMobile} />
+        <NavSection label="Finance" />
+        <NavLink href="/dashboard/fees" icon="account_balance_wallet" label="Fee Management" active={pathname === "/dashboard/fees"} onClick={closeMobile} />
         <NavSection label="Analytics" />
         <NavLink href="/dashboard/reports" icon="bar_chart" label="Reports" active={pathname === "/dashboard/reports"} onClick={closeMobile} />
         <NavLink href="/dashboard/announcements" icon="campaign" label="Announcements" active={pathname === "/dashboard/announcements"} onClick={closeMobile} />

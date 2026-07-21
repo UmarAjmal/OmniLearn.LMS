@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 
 const TRACK_LABELS: Record<string, string> = {
@@ -43,14 +44,15 @@ function ApproveWithNoteModal({
 }: {
   applicant: TrainingApplication;
   onClose: () => void;
-  onConfirm: (note: string) => void;
+  onConfirm: (note: string, totalFee: number) => void;
 }) {
   const [note, setNote] = useState("");
+  const [totalFee, setTotalFee] = useState<number | "">("");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async () => {
     setIsLoading(true);
-    await onConfirm(note);
+    await onConfirm(note, Number(totalFee) || 0);
     setIsLoading(false);
   };
 
@@ -108,6 +110,31 @@ function ApproveWithNoteModal({
               For: {applicant.full_name}
             </p>
           </div>
+        </div>
+
+        <div style={{ marginBottom: "16px" }}>
+          <label style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", fontWeight: 600, color: "rgba(206,229,255,0.8)", display: "block", marginBottom: "8px" }}>
+            Total Course Fee (Rs.)
+          </label>
+          <input
+            type="number"
+            placeholder="e.g. 20000"
+            value={totalFee}
+            onChange={(e) => setTotalFee(e.target.value === "" ? "" : Number(e.target.value))}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              background: "rgba(255,255,255,0.05)",
+              border: "1.5px solid rgba(32,99,147,0.3)",
+              borderRadius: "10px",
+              color: "#fff",
+              fontSize: "14px",
+              fontFamily: "Inter, sans-serif",
+              outline: "none",
+              boxSizing: "border-box",
+              transition: "border-color 0.2s",
+            }}
+          />
         </div>
 
         <div style={{ marginBottom: "20px" }}>
@@ -470,7 +497,7 @@ export default function TrainingApplicantsPage() {
 
   const fetchApplications = useCallback(async () => {
     try {
-      const res = await fetch(`/api/training-applications`);
+      const res = await apiClient(`/api/training-applications`);
       const data = await res.json();
       if (data.success) setApplications(data.data);
     } catch (err) {
@@ -488,12 +515,12 @@ export default function TrainingApplicantsPage() {
     return () => clearInterval(interval);
   }, [fetchApplications]);
 
-  const handleApprove = async (id: string, note?: string) => {
+  const handleApprove = async (id: string, note?: string, totalFee?: number) => {
     try {
-      const res = await fetch(`/api/training-applications/${id}/approve`, {
+      const res = await apiClient(`/api/training-applications/${id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: note || "" }),
+        body: JSON.stringify({ note: note || "", totalFee: totalFee || 0 }),
       });
       const data = await res.json();
       if (data.success) {
@@ -510,7 +537,7 @@ export default function TrainingApplicantsPage() {
 
   const handleReject = async (id: string) => {
     try {
-      const res = await fetch(`/api/training-applications/${id}/reject`, {
+      const res = await apiClient(`/api/training-applications/${id}/reject`, {
         method: "POST",
       });
       const data = await res.json();
@@ -616,7 +643,7 @@ export default function TrainingApplicantsPage() {
         <ApproveWithNoteModal
           applicant={noteModalApp}
           onClose={() => setNoteModalApp(null)}
-          onConfirm={(note) => handleApprove(noteModalApp.id, note)}
+          onConfirm={(note, fee) => handleApprove(noteModalApp.id, note, fee)}
         />
       )}
 
