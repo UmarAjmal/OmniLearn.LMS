@@ -26,15 +26,20 @@ export default function StudentCampaignsPage() {
   const fetchMyCampaigns = async () => {
     try {
       // First get student ID
-      const meRes = await apiClient("/api/users/me");
-      const meJson = await meRes.json();
-      if (!meJson.success || !meJson.data?.student_id) {
+      const infoStr = localStorage.getItem("lms_student_info");
+      let studentId = null;
+      if (infoStr && infoStr !== "undefined" && infoStr !== "null") {
+        const studentObj = JSON.parse(infoStr);
+        studentId = studentObj.id;
+      }
+      
+      if (!studentId) {
         toast.error("Could not find student profile");
         setIsLoading(false);
         return;
       }
       
-      const res = await apiClient(`/api/student/${meJson.data.student_id}/campaigns`);
+      const res = await apiClient(`/api/student/${studentId}/campaigns`);
       const json = await res.json();
       if (json.success) {
         setCampaigns(json.data || []);
