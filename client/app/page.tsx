@@ -262,7 +262,7 @@ export default function LandingPage() {
               <button
                 id="btn-student-register"
                 aria-label="Register as New Student"
-                onClick={() => router.push("/signup/student")}
+                onClick={() => router.push("/apply")}
                 className="w-full btn-outline rounded-2xl py-4 px-6 flex items-center gap-4 text-left cursor-pointer group"
               >
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300"

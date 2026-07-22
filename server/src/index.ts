@@ -1,11 +1,14 @@
 import 'dotenv/config';
 import express from 'express';
-import { authenticateToken, requireAdmin, requireTrainer, requireStudent, requireAdminOrTrainer } from './middleware/auth';
+import { authenticateToken, requireAdmin, requireTrainer, requireStudent, requireAdminOrTrainer } from './middleware/auth.js';
 import fs from 'fs';
 import cors from 'cors';
 import nodemailer from 'nodemailer';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import campaignRoutes from './routes/campaigns.js';
+import notificationRoutes from './routes/notifications.js';
+import { NotificationEngine } from './services/NotificationEngine.js';
 import { supabase, pool } from './db.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -99,6 +102,10 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
+
+// Mount modular routes
+app.use('/api', campaignRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Serve local uploads
 app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -556,7 +563,7 @@ app.get('/api/users', authenticateToken, requireAdmin, async (req, res) => {
 // ==========================================
 
 // Submit new Application
-app.post('/api/applicants', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/applicants', async (req, res) => {
   const { first_name, last_name, email, phone, program, academic_background, course_interest } = req.body;
   try {
     const query = `
@@ -608,13 +615,13 @@ app.post('/api/applicants/:id/approve', authenticateToken, requireAdmin, async (
       throw new Error("Applicant already approved");
     }
 
-    // 2. Hash phone as password
-    const hashedPassword = await bcrypt.hash(applicant.phone, 10);
+    // 2. Hash default password
+    const hashedPassword = await bcrypt.hash('Password@123', 10);
 
     // 3. Create User
     const userRes = await client.query(`
-      INSERT INTO users (email, password_hash, role)
-      VALUES ($1, $2, 'student')
+      INSERT INTO users (email, password_hash, role, must_change_password)
+      VALUES ($1, $2, 'student', true)
       RETURNING id
     `, [applicant.email, hashedPassword]);
     const userId = userRes.rows[0].id;
@@ -699,10 +706,50 @@ app.post('/api/auth/login', async (req, res) => {
         id: user.id,
         email: user.email,
         role: user.role,
+        mustChangePassword: user.must_change_password || false,
         student: studentInfo
       }
     });
   } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST change password
+app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  // Use user id attached to req by authenticateToken
+  const userId = (req as any).user?.id;
+
+  if (!userId) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const userRes = await client.query('SELECT * FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    const user = userRes.rows[0];
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isMatch) {
+      client.release();
+      return res.status(401).json({ success: false, error: 'Incorrect current password' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await client.query(
+      'UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2',
+      [hashedPassword, userId]
+    );
+
+    client.release();
+    res.json({ success: true, message: 'Password updated successfully.' });
+  } catch (err: any) {
+    client.release();
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -867,7 +914,7 @@ app.get('/api/students', authenticateToken, requireAdminOrTrainer, async (req, r
 
 
 // POST submit a new training application (from public apply form)
-app.post('/api/training-applications', authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/training-applications', async (req, res) => {
   const {
     fullName,
     fatherName,
@@ -1009,19 +1056,18 @@ app.post('/api/training-applications/:id/approve', authenticateToken, requireAdm
     let userRes = await client.query("SELECT id FROM users WHERE email = $1", [app_data.gmail]);
     let userId;
     
-    // Build a readable temporary password from their WhatsApp digits
-    // Format: FalconSwift@ + last 4 digits of WhatsApp (e.g. FalconSwift@3456)
-    // Falls back to FalconSwift@1234 if no WhatsApp number is stored.
-    const whatsappDigits = (app_data.whatsapp || '').replace(/\D/g, '').slice(-4) || '1234';
-    const tempPassword = `FalconSwift@${whatsappDigits}`;
+    // Default password for new accounts
+    const tempPassword = 'Password@123';
     
     if (userRes.rows.length > 0) {
       userId = userRes.rows[0].id;
+      // Also ensure they have to change their password if they were just approved
+      await client.query("UPDATE users SET password_hash = $1, must_change_password = true WHERE id = $2", [await bcrypt.hash(tempPassword, 10), userId]);
     } else {
       // Create user with the documented temporary password
       const hashedPassword = await bcrypt.hash(tempPassword, 10);
       const newUserRes = await client.query(
-        "INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'student') RETURNING id",
+        "INSERT INTO users (email, password_hash, role, must_change_password) VALUES ($1, $2, 'student', true) RETURNING id",
         [app_data.gmail, hashedPassword]
       );
       userId = newUserRes.rows[0].id;
@@ -1049,33 +1095,9 @@ app.post('/api/training-applications/:id/approve', authenticateToken, requireAdm
     // 4.b Initialize Fees
     const feeCheckRes = await client.query("SELECT id FROM fees WHERE student_id = $1", [studentId]);
     if (feeCheckRes.rows.length === 0) {
-      let courseId = null;
-      let coursePrice = null;
-      if (programName) {
-        const courseRes = await client.query("SELECT id, price FROM courses WHERE title = $1 LIMIT 1", [programName]);
-        if (courseRes.rows.length > 0) {
-          courseId = courseRes.rows[0].id;
-          coursePrice = courseRes.rows[0].price;
-        }
-      }
-      
-      let totalFee = null;
-      let remainingAmount = null;
-      let status = '';
-
-      if (!programName || !courseId) {
-        status = 'course_not_assigned';
-      } else if (coursePrice === null || coursePrice === undefined) {
-        status = 'fee_not_configured';
-      } else {
-        totalFee = coursePrice;
-        remainingAmount = coursePrice;
-        status = 'unpaid';
-      }
-
       await client.query(
         "INSERT INTO fees (student_id, course_id, total_fee, paid_amount, remaining_amount, status) VALUES ($1, $2, $3, 0, $4, $5)",
-        [studentId, courseId, totalFee, remainingAmount, status]
+        [studentId, null, null, null, 'fee_not_configured']
       );
     }
 
@@ -1731,12 +1753,15 @@ app.post('/api/tasks/assignments/:assignmentId/publish', authenticateToken, requ
     `, [assignmentId]);
     if (detailRes.rows.length > 0) {
       const d = detailRes.rows[0];
-      // 3. Create notification
-      await client.query(
-        `INSERT INTO notifications (user_id, title, message, type)
-         VALUES ($1, $2, $3, 'task_reviewed')`,
-        [d.user_id, `Task Reviewed: ${d.task_name}`, `Your task "${d.task_name}" has been reviewed. Score: ${scoreNum}/100. ${feedback ? 'Feedback: ' + feedback : ''}`]
-      );
+      // 3. Create notification via NotificationEngine (Normal Priority)
+      await NotificationEngine.createNotification({
+        type: 'other',
+        title: `Task Reviewed: ${d.task_name}`,
+        message: `Your task "${d.task_name}" has been reviewed. Score: ${scoreNum}/100. ${feedback ? 'Feedback: ' + feedback : ''}`,
+        priority: 'normal',
+        recipients: [d.student_id],
+        createdBy: req.user?.id
+      });
       await client.query('COMMIT');
       client.release();
       // 4. Send email
@@ -1797,14 +1822,15 @@ app.post('/api/tasks/assign-with-email', authenticateToken, requireAdmin, async 
       );
       if (sRes.rows.length > 0) studentDetails.push(sRes.rows[0]);
     }
-    // Create notifications
-    for (const s of studentDetails) {
-      await client.query(
-        `INSERT INTO notifications (user_id, title, message, type)
-         VALUES ($1, $2, $3, 'task_assigned')`,
-        [s.user_id, `New Task: ${title}`, `A new task "${title}" has been assigned in ${courseLabel || courseId}. Deadline: ${dueDate ? new Date(dueDate).toLocaleDateString() : 'N/A'}`]
-      );
-    }
+    // Create notifications via NotificationEngine (Critical Priority)
+    await NotificationEngine.createNotification({
+      type: 'assignment',
+      title: `New Task: ${title}`,
+      message: `A new task "${title}" has been assigned in ${courseLabel || courseId}. Deadline: ${dueDate ? new Date(dueDate).toLocaleDateString() : 'N/A'}`,
+      priority: 'critical',
+      recipients: assignedStudentIds,
+      createdBy: req.user?.id
+    });
     await client.query('COMMIT');
     client.release();
     // Send emails in background
@@ -1867,11 +1893,14 @@ app.post('/api/attendance', authenticateToken, requireAdminOrTrainer, async (req
       );
       if (sRes.rows.length > 0) {
         const statusLabel = record.status === 'present' ? 'Present ✅' : record.status === 'absent' ? 'Absent ❌' : record.status === 'late' ? 'Late ⏰' : 'On Leave 📋';
-        await client.query(
-          `INSERT INTO notifications (user_id, title, message, type)
-           VALUES ($1, $2, $3, 'attendance')`,
-          [sRes.rows[0].user_id, `Attendance Marked: ${new Date(date).toDateString()}`, `Your attendance for ${new Date(date).toDateString()} has been marked as ${statusLabel}.`]
-        );
+        await NotificationEngine.createNotification({
+          type: 'other',
+          title: `Attendance Marked: ${new Date(date).toDateString()}`,
+          message: `Your attendance for ${new Date(date).toDateString()} has been marked as ${statusLabel}.`,
+          priority: 'normal',
+          recipients: [record.studentId],
+          createdBy: req.user?.id
+        });
       }
     }
     await client.query('COMMIT');
@@ -1971,18 +2000,25 @@ app.post('/api/announcements', authenticateToken, requireAdmin, async (req, res)
     const result = await client.query(
       `INSERT INTO announcements (title, content, author_id, author_name, role, target)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [title, content, authorId || null, authorName || 'Admin', role || 'admin', target || 'all']
+      [title, content, req.user?.id || null, authorName || 'Admin', role || 'admin', target || 'all']
     );
-    // Create notifications for all students
-    const studentsRes = await client.query('SELECT u.id AS user_id FROM students s JOIN users u ON u.id = s.user_id');
-    for (const s of studentsRes.rows) {
-      await client.query(
-        `INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, 'announcement')`,
-        [s.user_id, `📢 ${title}`, content.substring(0, 200)]
-      );
-    }
+    // Create notifications for all students via NotificationEngine (Critical Priority)
+    const studentsRes = await client.query('SELECT id FROM students');
+    const studentIds = studentsRes.rows.map(row => row.id);
+    
     await client.query('COMMIT');
     client.release();
+
+    if (studentIds.length > 0) {
+      await NotificationEngine.createNotification({
+        type: 'announcement',
+        title: `📢 ${title}`,
+        message: content.substring(0, 200),
+        priority: 'critical',
+        recipients: studentIds,
+        createdBy: req.user?.id
+      });
+    }
     // Optional: send email to all students
     if (doSendEmail) {
       const emailStudents = await pool.query('SELECT u.email, s.first_name FROM students s JOIN users u ON u.id = s.user_id');
@@ -2011,13 +2047,19 @@ app.post('/api/announcements', authenticateToken, requireAdmin, async (req, res)
 });
 
 // GET all announcements (paginated)
-app.get('/api/announcements', authenticateToken, requireAdmin, async (req, res) => {
+app.get('/api/announcements', authenticateToken, async (req, res) => {
   const { limit = 20, offset = 0 } = req.query;
   try {
-    const result = await pool.query(
-      'SELECT * FROM announcements ORDER BY created_at DESC LIMIT $1 OFFSET $2',
-      [limit, offset]
-    );
+    let query = 'SELECT * FROM announcements ';
+    
+    // Students only see announcements meant for 'all' or 'students'
+    if (req.user?.role === 'student') {
+      query += "WHERE target = 'all' OR target = 'students' ";
+    }
+    
+    query += 'ORDER BY created_at DESC LIMIT $1 OFFSET $2';
+    
+    const result = await pool.query(query, [limit, offset]);
     res.json({ success: true, data: result.rows });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -2104,7 +2146,7 @@ app.get('/api/dashboard/admin-stats', authenticateToken, requireAdmin, async (re
     const [
       studentsRes,
       trainersRes,
-      coursesRes,
+      campaignsRes,
       activeTasksRes,
       pendingRegsRes,
       submissionsRes,
@@ -2113,7 +2155,7 @@ app.get('/api/dashboard/admin-stats', authenticateToken, requireAdmin, async (re
     ] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM students'),
       pool.query("SELECT COUNT(*) FROM users WHERE role = 'trainer'"),
-      pool.query('SELECT COUNT(*) FROM courses'),
+      pool.query('SELECT COUNT(*) FROM lead_campaigns'),
       pool.query("SELECT COUNT(*) FROM tasks"),
       pool.query("SELECT COUNT(*) FROM training_applications WHERE status = 'pending'"),
       pool.query("SELECT COUNT(*) FROM task_assignments WHERE status IN ('completed','marked')"),
@@ -2146,7 +2188,7 @@ app.get('/api/dashboard/admin-stats', authenticateToken, requireAdmin, async (re
       data: {
         students: parseInt(studentsRes.rows[0].count) || 0,
         trainers: parseInt(trainersRes.rows[0].count) || 0,
-        courses: parseInt(coursesRes.rows[0].count) || 0,
+        campaigns: parseInt(campaignsRes.rows[0].count) || 0,
         activeTasks: parseInt(activeTasksRes.rows[0].count) || 0,
         pendingRegistrations: parseInt(pendingRegsRes.rows[0].count) || 0,
         submissions: parseInt(submissionsRes.rows[0].count) || 0,
@@ -2483,27 +2525,40 @@ app.put('/api/finance/fees/:studentId/total', authenticateToken, requireAdmin, a
 // 5. Get student own fees
 app.get('/api/student/:studentId/fees', authenticateToken, requireStudent, async (req, res) => {
   const { studentId } = req.params;
-  
-  if (!req.user || req.user.id !== parseInt(studentId)) {
-    return res.status(403).json({ success: false, error: 'Unauthorized: Can only view your own fees' });
-  }
+  const client = await pool.connect();
   
   try {
-    const feeResult = await pool.query('SELECT * FROM fees WHERE student_id = $1 LIMIT 1', [studentId]);
+    const studentCheck = await client.query('SELECT user_id FROM students WHERE id = $1', [studentId]);
+    if (studentCheck.rows.length === 0 || studentCheck.rows[0].user_id !== req.user.id) {
+      client.release();
+      return res.status(403).json({ success: false, error: 'Unauthorized: Can only view your own fees' });
+    }
+    
+    const feeResult = await client.query('SELECT * FROM fees WHERE student_id = $1 LIMIT 1', [studentId]);
     const feeData = feeResult.rows[0];
     let payments: any[] = [];
     if (feeData) {
-      const paymentsResult = await pool.query('SELECT * FROM fee_payments WHERE fee_id = $1 ORDER BY payment_date DESC', [feeData.id]);
+      const paymentsResult = await client.query('SELECT * FROM fee_payments WHERE fee_id = $1 ORDER BY payment_date DESC', [feeData.id]);
       payments = paymentsResult.rows;
     }
+    client.release();
     res.json({ success: true, data: { fee: feeData || null, payments } });
   } catch (err: any) {
+    if (client) client.release();
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
+app.use('/api', campaignRoutes);
+
 app.listen(PORT, async () => {
   console.log(`Server is running on http://localhost:${PORT}`);
+  try {
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false");
+    console.log('✅ "users" table must_change_password column auto-migrated successfully!');
+  } catch (dbErr: any) {
+    console.error("Users table self-correction failed:", dbErr.message);
+  }
   try {
     await pool.query("ALTER TABLE applicants ADD COLUMN IF NOT EXISTS program VARCHAR(100)");
     console.log('✅ "applicants" table program column auto-migrated successfully!');

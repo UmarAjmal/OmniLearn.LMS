@@ -57,6 +57,7 @@ async function initDB() {
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         role VARCHAR(50) DEFAULT 'student',
+        must_change_password BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -150,6 +151,167 @@ async function initDB() {
 
       console.log('✅ Seed courses inserted successfully!');
     }
+
+    // --- Lead Campaigns Module ---
+    
+    // 14. lead_campaigns
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lead_campaigns (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        platforms JSONB,
+        target_batch VARCHAR(100),
+        target_trainer VARCHAR(100),
+        target_leads INT,
+        daily_target INT,
+        priority VARCHAR(50) DEFAULT 'medium',
+        start_date TIMESTAMP,
+        deadline TIMESTAMP,
+        status VARCHAR(50) DEFAULT 'active',
+        instructions TEXT,
+        attachments JSONB,
+        created_by INT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ "lead_campaigns" table verified successfully!');
+
+    // 15. campaign_keywords
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS campaign_keywords (
+        id SERIAL PRIMARY KEY,
+        campaign_id INT REFERENCES lead_campaigns(id) ON DELETE CASCADE,
+        keyword VARCHAR(255) NOT NULL
+      )
+    `);
+    console.log('✅ "campaign_keywords" table verified successfully!');
+
+    // 16. campaign_students
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS campaign_students (
+        id SERIAL PRIMARY KEY,
+        campaign_id INT REFERENCES lead_campaigns(id) ON DELETE CASCADE,
+        student_id INT REFERENCES students(id) ON DELETE CASCADE,
+        UNIQUE(campaign_id, student_id)
+      )
+    `);
+    console.log('✅ "campaign_students" table verified successfully!');
+
+    // 17. lead_submissions
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lead_submissions (
+        id SERIAL PRIMARY KEY,
+        campaign_id INT REFERENCES lead_campaigns(id) ON DELETE CASCADE,
+        student_id INT REFERENCES students(id) ON DELETE CASCADE,
+        business_name VARCHAR(255) NOT NULL,
+        contact_person VARCHAR(255),
+        phone VARCHAR(100),
+        email VARCHAR(255),
+        website VARCHAR(500),
+        address TEXT,
+        city VARCHAR(100),
+        country VARCHAR(100),
+        industry VARCHAR(100),
+        platform VARCHAR(100),
+        keyword VARCHAR(255),
+        business_url VARCHAR(500),
+        lead_quality VARCHAR(50),
+        screenshot_url VARCHAR(500),
+        notes TEXT,
+        status VARCHAR(50) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(campaign_id, phone),
+        UNIQUE(campaign_id, email),
+        UNIQUE(campaign_id, website),
+        UNIQUE(campaign_id, business_url)
+      )
+    `);
+    console.log('✅ "lead_submissions" table verified successfully!');
+
+    // 18. lead_reviews
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lead_reviews (
+        id SERIAL PRIMARY KEY,
+        lead_id INT REFERENCES lead_submissions(id) ON DELETE CASCADE,
+        reviewer_id INT NOT NULL,
+        reviewer_role VARCHAR(50) NOT NULL,
+        feedback TEXT,
+        points_awarded INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ "lead_reviews" table verified successfully!');
+
+    // 19. lead_points_ledger
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lead_points_ledger (
+        id SERIAL PRIMARY KEY,
+        student_id INT REFERENCES students(id) ON DELETE CASCADE,
+        lead_id INT REFERENCES lead_submissions(id) ON DELETE CASCADE,
+        points INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ "lead_points_ledger" table verified successfully!');
+
+    // 20. notifications
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        type VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT,
+        priority VARCHAR(50) DEFAULT 'normal',
+        action_url VARCHAR(500),
+        attachment_url VARCHAR(500),
+        created_by INT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ "notifications" table verified successfully!');
+
+    // 21. notification_recipients
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notification_recipients (
+        id SERIAL PRIMARY KEY,
+        notification_id INT REFERENCES notifications(id) ON DELETE CASCADE,
+        student_id INT REFERENCES students(id) ON DELETE CASCADE,
+        is_read BOOLEAN DEFAULT false,
+        read_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(notification_id, student_id)
+      )
+    `);
+    console.log('✅ "notification_recipients" table verified successfully!');
+
+    // 22. notification_logs
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notification_logs (
+        id SERIAL PRIMARY KEY,
+        notification_id INT REFERENCES notifications(id) ON DELETE CASCADE,
+        student_id INT REFERENCES students(id) ON DELETE CASCADE,
+        action VARCHAR(50) NOT NULL,
+        ip_address VARCHAR(100),
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ "notification_logs" table verified successfully!');
+
+    // 23. user_fcm_tokens
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_fcm_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(id) ON DELETE CASCADE,
+        token TEXT NOT NULL,
+        device_type VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, token)
+      )
+    `);
+    console.log('✅ "user_fcm_tokens" table verified successfully!');
 
   } catch (err) {
     console.error('❌ Error during database schema initialization:', err);

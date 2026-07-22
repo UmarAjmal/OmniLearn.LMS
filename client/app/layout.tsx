@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { ToastContainer } from "react-toastify";
 import "./globals.css";
 import Navigation from "../components/Navigation";
+import NotificationProvider from "../components/NotificationProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,10 +34,11 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body-md overflow-x-hidden selection:bg-gold-accent/30 min-h-screen">
-        <Navigation>
-          {children}
-        </Navigation>
-        <ToastContainer
+        <NotificationProvider>
+          <Navigation>
+            {children}
+          </Navigation>
+          <ToastContainer
           position="bottom-right"
           autoClose={5000}
           hideProgressBar={false}
@@ -49,6 +51,7 @@ export default function RootLayout({
           theme="dark"
           toastClassName="glass-card border-l-4 border-gold-accent !bg-navy-accent/50"
         />
+        </NotificationProvider>
       </body>
     </html>
   );

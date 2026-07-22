@@ -59,8 +59,14 @@ export default function StudentLoginPage() {
           if (json.user.student) {
             localStorage.setItem("lms_student_info", JSON.stringify(json.user.student));
           }
-          toast.success("Login successful. Welcome to your Student Portal!");
-          router.push("/student/dashboard");
+          if (json.user.mustChangePassword) {
+            localStorage.setItem("lms_must_change_password", "true");
+            toast.error("Please update your default password first.");
+            router.push("/change-password");
+          } else {
+            toast.success("Login successful. Welcome to your Student Portal!");
+            router.push("/student/dashboard");
+          }
         } else if (json.user.role === "trainer") {
           toast.success("Login successful. Welcome to Trainer Portal!");
           router.push("/trainer/dashboard");
@@ -265,7 +271,7 @@ export default function StudentLoginPage() {
           <p className="text-gray-600 text-xs">
             New student?{" "}
             <button
-              onClick={() => router.push("/signup/student")}
+              onClick={() => router.push("/apply")}
               className="text-blue-400 font-semibold hover:underline cursor-pointer bg-transparent border-none"
             >
               Register your account

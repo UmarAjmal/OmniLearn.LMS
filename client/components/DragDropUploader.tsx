@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import { toast } from "react-toastify";
+import { apiClient } from "@/lib/apiClient";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://omnilearn-lms.onrender.com";
 
@@ -48,7 +49,7 @@ export default function DragDropUploader({
           const base64Data = reader.result as string;
           
           // Upload to server endpoint
-          const res = await fetch(`/api/upload`, {
+          const res = await apiClient(`/api/upload`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

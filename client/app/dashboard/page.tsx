@@ -10,7 +10,7 @@ import { apiClient } from "@/lib/apiClient";
 interface AdminStats {
   students: number;
   trainers: number;
-  courses: number;
+  campaigns: number;
   activeTasks: number;
   pendingRegistrations: number;
   submissions: number;
@@ -178,7 +178,7 @@ export default function AdminDashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
         <StatCard icon="school" label="Students" value={stats?.students ?? 0} href="/students" />
         <StatCard icon="badge" label="Trainers" value={stats?.trainers ?? 0} href="/dashboard/trainers" accent="bg-blue-500/15" />
-        <StatCard icon="menu_book" label="Courses" value={stats?.courses ?? 0} href="/courses" accent="bg-purple-500/15" />
+        <StatCard icon="radar" label="Campaigns" value={stats?.campaigns ?? 0} href="/dashboard/campaigns" accent="bg-purple-500/15" />
         <StatCard icon="assignment" label="Active Tasks" value={stats?.activeTasks ?? 0} accent="bg-orange-500/15" />
         <StatCard icon="how_to_reg" label="Pending Admissions" value={stats?.pendingRegistrations ?? 0} href="/students/applicants" accent="bg-red-500/15" sub="Require review" />
         <StatCard icon="task_alt" label="Submissions" value={stats?.submissions ?? 0} accent="bg-emerald-500/15" />
@@ -246,11 +246,11 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Courses list */}
+      {/* Campaigns list */}
       <div className="bg-[#101827] border border-white/[0.06] rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold text-white">Learning Tracks</h2>
-          <Link href="/courses" className="text-[#F6B32B] text-xs font-semibold hover:underline">Manage →</Link>
+          <h2 className="text-base font-bold text-white">Active Campaigns</h2>
+          <Link href="/dashboard/campaigns" className="text-[#F6B32B] text-xs font-semibold hover:underline">Manage →</Link>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
